@@ -67,9 +67,9 @@ def get_task():
         hostcfg = create_host_config(port_bindings={port: ('127.0.0.1', port)})
         
         #sudo docker run -i -t -p 6081:6080 -e UBUNTUPASS=supersecret -e VNCPASS=secret -h localhost mccahill/eclipse-novnc
-        container = c.create_container(detach=True, image=img, hostname=hostn, environment=confdict, host_config=hostcfg, ports=[port])
+        container = c.create_container(detach=True, tty=True, image=img, hostname=hostn, environment=confdict, host_config=hostcfg, ports=[port])
         resp = c.start(container=container.get('Id'))
-        print(resp)
+        #print(resp)
         
         machines = machines + 1
         url = "https://%s/%s/vnc.html?&encrypt=1&autoconnect=1&password=%s" % (hostn, port, confdict['VNCPASS'])
