@@ -1,21 +1,17 @@
-#
-# Python Dockerfile
-#
-# https://github.com/dockerfile/python
-#
+FROM debian
 
-# Pull base image.
-FROM python
+RUN apt-get update
+RUN apt-get install -y python python-pip nginx git
+RUN pip install docker-py flask
+RUN apt-get clean
 
-# Install Python.
-RUN \
-  pip install docker-py flask && \
-  mkdir -p /code
+ADD ./dockerserver.py /dockerserver.py
+ADD ./run.sh /run.sh
 
-# Define working directory.
-WORKDIR /code
+WORKDIR /var/www/html
+RUN rm * -Rfv
+RUN git clone git://github.com/kanaka/noVNC .
 
-ADD dockerserver.py /code/dockerserver.py
+EXPOSE 80 443
 
-# Define default command.
-CMD ["bash"]
+CMD ["/run.sh"]
