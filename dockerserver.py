@@ -10,10 +10,11 @@ from functools import cmp_to_key
 from docker.client import Client as DockerClient
 from docker.utils import compare_version
 
+start_port=int(os.getenv('DOCKERAPI_START_PORT', 1000))
+end_port=int(os.getenv('DOCKERAPI_END_PORT', 1050))
+hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikifm.org")
 
 MINIMUM_API_VERSION = '1.14'
-start_port = 1000
-end_port = 1050
 
 def get_api_version(*versions):
     # compare_version is backwards
@@ -26,8 +27,6 @@ version_client = DockerClient(base_url='unix://var/run/docker.sock', version=MIN
 version = get_api_version('1.18', version_client.version()['ApiVersion'])
 
 c = DockerClient(base_url='unix://var/run/docker.sock', version=version)
-
-hostn="dockers.wikifm.org"
 
 app = Flask(__name__)
 
@@ -57,7 +56,7 @@ def first_ok_port():
         else:
             return try_port
         
-        if try_port == end_port:
+        if try_port > end_port:
             return None
             
 @app.route('/')
