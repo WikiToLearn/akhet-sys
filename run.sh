@@ -16,6 +16,13 @@ echo ' location / {'
 echo '  root /var/www/html;'
 echo '  index vnc.html;'
 echo ' }'
+echo 'location /create {'
+echo ' proxy_pass http://127.0.0.1:5000;'
+echo ' proxy_set_header Host $host;'
+echo ' proxy_set_header X-Real-IP $remote_addr;'
+echo ' proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;'
+echo ' proxy_set_header X-Forwarded-Proto $scheme;'
+echo '}'
 P=$DOCKERAPI_START_PORT
 while [[ $P -le $DOCKERAPI_END_PORT ]] ; do
  echo ' location /'$P' { proxy_pass http://port'$P'; proxy_http_version 1.1; proxy_set_header Upgrade $http_upgrade; proxy_set_header Connection "upgrade"; }'
