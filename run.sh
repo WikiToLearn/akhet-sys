@@ -1,8 +1,13 @@
 #!/bin/bash
 
-export DOCKERAPI_START_PORT=1000
-export DOCKERAPI_END_PORT=2000
-export DOCKERAPI_HOSTNAME="dockers.wikifm.org"
+[[ "$DOCKERAPI_START_PORT" != "" ]] || export DOCKERAPI_START_PORT=1000
+[[ "$DOCKERAPI_END_PORT" != "" ]] || export DOCKERAPI_END_PORT=2000
+[[ "$DOCKERAPI_HOSTNAME" != "" ]] || export DOCKERAPI_HOSTNAME="dockers.wikifm.org"
+
+[[ "$DOCKERAPI_USER" != "" ]] || DOCKERAPI_USER="admin"
+[[ "$DOCKERAPI_PASS" != "" ]] || DOCKERAPI_PASS="admin"
+
+echo $DOCKERAPI_USER:$(perl -le 'print crypt("'$DOCKERAPI_PASS'", "Salt-hash")') > /var/www/htpasswd
 
 {
 P=$DOCKERAPI_START_PORT
@@ -17,6 +22,8 @@ echo '  root /var/www/html;'
 echo '  index vnc.html;'
 echo ' }'
 echo 'location /create {'
+echo ' auth_basic "Administrator Login";'
+echo ' auth_basic_user_file /var/www/htpasswd;'
 echo ' proxy_pass http://127.0.0.1:5000;'
 echo ' proxy_set_header Host $host;'
 echo ' proxy_set_header X-Real-IP $remote_addr;'

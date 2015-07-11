@@ -91,7 +91,7 @@ def get_task():
     container = c.create_container(detach=True, tty=True, image=img, hostname=hostn, environment=confdict, host_config=hostcfg, ports=[port])
     resp = c.start(container=container.get('Id'))
     
-    url = "http://%s/vnc.html?path=%s&autoconnect=1&password=%s" % (hostn, port, confdict['VNCPASS'])
+    url = "http://%s/vnc.html?resize=scale&path=%s&autoconnect=1&password=%s" % (hostn, port, confdict['VNCPASS'])
     return url
     
 if __name__ == '__main__':
