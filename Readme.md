@@ -8,3 +8,15 @@ It supports some parameters passed in as environment variables:
  * `DOCKERAPI_HOSTNAME`: Hostname for the (default: "dockers.wikifm.org")
  * `DOCKERAPI_USER`: User for accessing the VM creation web api. (default: "admin")
  * `DOCKERAPI_PASS`: Password for accessing the VM creation web api. (default: "admin")
+
+## API Doc
+
+The API is very simple. It expects a GET request in the following form:
+
+    http://dockerfactory.wikifm.org/create?user=foo&image=bar
+
+and will return a URL like:
+
+    http://dockers.wikifm.org/1002/vnc.html?params=...
+
+This will instanciate the docker image named `wikifm/bar`, and will mount `foo`'s homedirectory as home. Both `user` and `image` have to be alphanumeric (aka match `[a-zA-Z0-9\-]*`)
