@@ -39,6 +39,10 @@ def validate(test_str):
     return re.search(p, test_str).group(0)
 
 def first_ok_port():
+    # Garbage collect
+    for d in c.containers(all=True,filters={"status":"exited"}):
+        c.remove_container(d)
+        
     l = c.containers(all=True)#, quiet=True)
     ports_list = []
     for i in l:
@@ -95,4 +99,4 @@ def get_task():
     return url
     
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=False)
