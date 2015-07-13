@@ -15,8 +15,11 @@ The API is very simple. It expects a GET request in the following form:
 
     http://dockerfactory.wikifm.org/create?user=foo&image=bar
 
-and will return a URL like:
+and will return a PATH like:
 
-    http://dockers.wikifm.org/1002/vnc.html?params=...
+    /vnc.html?params=...
 
-This will instanciate the docker image named `wikifm/bar`, and will mount `foo`'s homedirectory as home. Both `user` and `image` have to be alphanumeric (aka match `[a-zA-Z0-9\-]*`)
+This will instanciate the docker image named `wikifm/bar`, and will mount `foo`'s homedirectory as home. Both `user` and `image` have to be alphanumeric (aka match `[a-zA-Z0-9\-]*`).
+The instance will be available at `hostname`/`returned path`, so in this example:
+
+    http://dockerfactory.wikifm.org/vnc.html?params=...
