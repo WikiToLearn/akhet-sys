@@ -8,6 +8,7 @@ It supports some parameters passed in as environment variables:
  * `DOCKERAPI_HOSTNAME`: Hostname for the (default: "dockers.wikifm.org")
  * `DOCKERAPI_USER`: User for accessing the VM creation web api. (default: "admin")
  * `DOCKERAPI_PASS`: Password for accessing the VM creation web api. (default: "admin")
+ * `DOCKERAPI_HOMEDIRS`: The absolute path (of the parent machine) where the persistent homedirs will be stored. The directories will be created as `$DOCKERAPI_HOMEDIRS/$USER`.
 
 ## API Doc
 

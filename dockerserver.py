@@ -13,6 +13,7 @@ from docker.utils import compare_version
 start_port=int(os.getenv('DOCKERAPI_START_PORT', 1000))
 end_port=int(os.getenv('DOCKERAPI_END_PORT', 1050))
 hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikifm.org")
+homedir_folder=os.getenv('DOCKERAPI_HOMEDIRS', "/var/homedirs/")
 
 MINIMUM_API_VERSION = '1.14'
 
@@ -90,9 +91,10 @@ def get_task():
     confdict['USER'] = usr
     
     #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
-    hostcfg = create_host_config(port_bindings={6080: port})
+    hostcfg = create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
     
-    container = c.create_container(detach=True, tty=True, image=img, hostname=hostn, environment=confdict, host_config=hostcfg, ports=[port])
+    container = c.create_container(detach=True, tty=True, image=img, hostname=hostn, environment=confdict,
+                                   volumes=['%s/%s' % (homedir_folder, usr)], host_config=hostcfg, ports=[port])
     resp = c.start(container=container.get('Id'))
     
     url = "/vnc.html?resize=scale&path=%s&autoconnect=1&password=%s" % (port, confdict['VNCPASS'])
