@@ -12,6 +12,7 @@ from docker.utils import compare_version
 
 start_port=int(os.getenv('DOCKERAPI_START_PORT', 1000))
 end_port=int(os.getenv('DOCKERAPI_END_PORT', 1050))
+external_port=int(os.getenv('DOCKERAPI_EXTERNAL_PORT', 80))
 hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikifm.org")
 homedir_folder=os.getenv('DOCKERAPI_HOMEDIRS', "/var/homedirs/")
 
@@ -93,7 +94,7 @@ def get_task():
     #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
     hostcfg = create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
     
-    container = c.create_container(detach=True, tty=True, image=img, hostname=hostn, environment=confdict,
+    container = c.create_container(detach=True, tty=True, image=img, hostname=str(port), environment=confdict,
                                    volumes=['%s/%s' % (homedir_folder, usr)], host_config=hostcfg, ports=[port])
     resp = c.start(container=container.get('Id'))
     
