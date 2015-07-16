@@ -87,7 +87,6 @@ def get_task():
     img = "wikifm/%s" % img # only support official images
 
     confdict = {}
-    confdict['UBUNTUPASS'] = get_pass(16)
     confdict['VNCPASS'] = get_pass(16)
     confdict['USER'] = usr
     
