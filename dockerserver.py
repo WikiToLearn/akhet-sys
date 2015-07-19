@@ -87,7 +87,7 @@ def get_task():
     img = "wikifm/%s" % img # only support official images
 
     confdict = {}
-    confdict['VNCPASS'] = get_pass(16)
+    confdict['VNCPASS'] = get_pass(8)
     confdict['USER'] = usr
     
     #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
