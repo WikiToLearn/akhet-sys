@@ -4,6 +4,7 @@ server {
   root /var/www/html;
   index vnc.html;
  }
+ resolver 127.0.0.1;
  location /create {
   auth_basic "Administrator Login";
   auth_basic_user_file /var/www/htpasswd;
@@ -41,6 +42,7 @@ server {
   root /var/www/html;
   index vnc.html;
  }
+ resolver 127.0.0.1;
  location /create {
   auth_basic "Administrator Login";
   auth_basic_user_file /var/www/htpasswd;

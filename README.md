@@ -24,3 +24,7 @@ This will instanciate the docker image named `wikifm/bar`, and will mount `foo`'
 The instance will be available at `hostname`/`returned path`, so in this example:
 
     http://dockerfactory.wikifm.org/vnc.html?params=...
+
+Run command example:
+
+    docker run -ti --privileged --name virtualfactory -v /var/run/docker.sock:/var/run/docker.sock -p 80:80 -p 443:443 -e wikifm/virtualfactory 

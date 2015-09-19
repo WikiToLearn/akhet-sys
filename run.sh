@@ -38,6 +38,7 @@ for allow_host in $DOCKERAPI_HOSTS ; do
  touch /var/www/allowedhosts/$allow_host
 done
 
+/etc/init.d/dnsmasq start
 /etc/init.d/nginx start
 
 python /dockerserver.py

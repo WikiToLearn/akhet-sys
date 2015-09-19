@@ -11,8 +11,8 @@ RUN apt-get -y install python-pip && rm -f /var/cache/apt/archives/*deb
 RUN apt-get -y install nginx && rm -f /var/cache/apt/archives/*deb
 RUN apt-get -y install git && rm -f /var/cache/apt/archives/*deb
 RUN apt-get -y install python-dev && rm -f /var/cache/apt/archives/*deb
+RUN apt-get -y install dnsmasq && rm -f /var/cache/apt/archives/*deb
 RUN pip install docker-py flask
-RUN apt-get clean
 
 RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
