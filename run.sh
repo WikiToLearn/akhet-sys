@@ -11,6 +11,16 @@
 
 echo $DOCKERAPI_USER:$(perl -le 'print crypt("'$DOCKERAPI_PASS'", "Salt-hash")') > /var/www/htpasswd
 
+if [ -f /certs/virtualfactory.crt ] ; then
+ echo "Copy /certs/virtualfactory.crt"
+ cp /certs/virtualfactory.crt /etc/ssl/certs/nginx.crt
+fi
+if [ -f /certs/virtualfactory.key ] ; then
+ echo "Copy /certs/virtualfactory.key"
+ cp /certs/virtualfactory.key /etc/ssl/private/nginx.key
+fi
+
+
 if [ ! -f /etc/ssl/private/nginx.key ] ; then
  openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
  openssl rsa -passin pass:x -in server.pass.key -out /etc/ssl/private/nginx.key
