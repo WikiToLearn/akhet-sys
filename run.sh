@@ -2,7 +2,7 @@
 
 [[ "$DOCKERAPI_START_PORT" != "" ]] || export DOCKERAPI_START_PORT=1000
 [[ "$DOCKERAPI_END_PORT" != "" ]] || export DOCKERAPI_END_PORT=2000
-[[ "$DOCKERAPI_HOSTNAME" != "" ]] || export DOCKERAPI_HOSTNAME="dockers.wikifm.org"
+[[ "$DOCKERAPI_HOSTNAME" != "" ]] || export DOCKERAPI_HOSTNAME="dockers.wikitolearn.org"
 
 [[ "$DOCKERAPI_HOSTS" != "" ]] || DOCKERAPI_HOSTS="172.17.42.1"
 
@@ -31,7 +31,7 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
 fi
 
 if [ -d /var/www/allowedports/ ] ; then
- rm -Rfv /var/www/allowedports/
+ rm -Rf /var/www/allowedports/
 fi
 mkdir /var/www/allowedports/
 P=$DOCKERAPI_START_PORT
@@ -41,7 +41,7 @@ while [[ $P -le $DOCKERAPI_END_PORT ]] ; do
 done
 
 if [ -d /var/www/allowedhosts/ ] ; then
- rm -Rfv /var/www/allowedhosts/
+ rm -Rf /var/www/allowedhosts/
 fi
 mkdir /var/www/allowedhosts/
 for allow_host in $DOCKERAPI_HOSTS ; do

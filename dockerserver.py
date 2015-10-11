@@ -4,10 +4,14 @@ import os
 import re
 import random
 import string
-from docker.utils import create_host_config
+import ssl
+
 from functools import cmp_to_key
 
-from docker.client import Client as DockerClient
+from docker.utils import create_host_config
+from docker import Client
+from docker.tls import TLSConfig
+from docker.client import Client
 from docker.utils import compare_version
 
 start_port=int(os.getenv('DOCKERAPI_START_PORT', 1000))
@@ -16,19 +20,14 @@ external_port=int(os.getenv('DOCKERAPI_EXTERNAL_PORT', 80))
 hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikifm.org")
 homedir_folder=os.getenv('DOCKERAPI_HOMEDIRS', "/var/homedirs/")
 
-MINIMUM_API_VERSION = '1.14'
+# tls auth for swarm cluster
+tls_config = TLSConfig(
+ client_cert=('/certs/virtualfactory.crt', '/certs/virtualfactory.key'),
+ verify='/certs/ca.crt',
+ ca_cert='/certs/ca.crt'
+)
 
-def get_api_version(*versions):
-    # compare_version is backwards
-    def cmp(a, b):
-        return -1 * compare_version(a, b)
-    return min(versions, key=cmp_to_key(cmp))
-
-
-version_client = DockerClient(base_url='unix://var/run/docker.sock', version=MINIMUM_API_VERSION)
-version = get_api_version('1.18', version_client.version()['ApiVersion'])
-
-c = DockerClient(base_url='unix://var/run/docker.sock', version=version)
+c = Client(base_url='https://swarm-manager:2375', tls=tls_config) #, version=version)
 
 app = Flask(__name__)
 
@@ -67,7 +66,7 @@ def first_ok_port():
             
 @app.route('/')
 def index():
- return "WikiFM Docker Init"
+ return "WikiToLearn Docker Init"
 
 @app.route('/create', methods=['GET'])
 def get_task():
@@ -91,14 +90,17 @@ def get_task():
     confdict['USER'] = usr
     
     #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
-    hostcfg = create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
+    hostcfg = c.create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
     
     container = c.create_container(detach=True, tty=True, image=img, hostname=str(port), environment=confdict,
                                    volumes=['%s/%s' % (homedir_folder, usr)], host_config=hostcfg, ports=[port])
     resp = c.start(container=container.get('Id'))
-    
-    url = "/vnc.html?resize=scale&path=%s&autoconnect=1&password=%s" % (port, confdict['VNCPASS'])
+
+    # get node address
+    nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
+
+    url = "/vnc.html?resize=scale&path=/socket/%s/%s&autoconnect=1&password=%s" % (nodeaddr, port, confdict['VNCPASS'])
     return url
     
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)
