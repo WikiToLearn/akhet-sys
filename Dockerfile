@@ -18,6 +18,10 @@ WORKDIR /var/www/html
 RUN rm * -Rfv
 RUN git clone git://github.com/kanaka/noVNC .
 
+RUN apt-get -y install cron && rm -f /var/cache/apt/archives/*deb
+RUN apt-get -y install wget && rm -f /var/cache/apt/archives/*deb
+ADD ./dockerservercron /etc/cron.d/
+
 RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
 

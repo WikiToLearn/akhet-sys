@@ -1,6 +1,5 @@
 #!/bin/bash
 apt-get install easy-rsa
-export HOSTS=$(echo dockeraccess{0..2}.thenerd.lan)
 
 if [[ "$HOSTS" == "" ]] ; then
  echo "You must set HOSTS env variabile whit an unique id (hostname or ip) of each node space separeted"
@@ -87,8 +86,11 @@ for host in $HOSTS ; do
  ssh ${host} 'docker rm $(docker ps -aq)'
  ssh ${host} "docker run -d --restart=always --name swarm_${host} swarm join --addr=${host}:2375 token://$CLUSTER_ID"
 done
-docker run -v /root/swarm-manager-certs/:/certs/ --name swarmmanager -dt --restart=always -t swarm manage  --tlsverify --tlscacert=/certs/ca.crt --tlscert=/certs/swarm-manager.crt --tlskey=/certs/swarm-manager.key token://$CLUSTER_ID
-docker run -v /root/virtualfactory-certs/:/certs/ --name virtualfactory --privileged -dti --restart=always --link swarmmanager:swarm-manager wikitolearn/virtualfactory
+docker run -v /root/swarm-manager-certs/:/certs/ --name swarmmanager -dt --restart=always -t swarm manage \
+ --tlsverify --tlscacert=/certs/ca.crt --tlscert=/certs/swarm-manager.crt --tlskey=/certs/swarm-manager.key token://$CLUSTER_ID
+
+docker run -v /root/virtualfactory-certs/:/certs/ --name virtualfactory -e DOCKERAPI_HOSTS="$HOSTS" \
+ --privileged -p 80:80 -p 443:443 -dti --restart=always --link swarmmanager:swarm-manager wikitolearn/virtualfactory
 
 rm -Rf /root/easy-rsa/
 

@@ -51,4 +51,6 @@ done
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
 
+cron
+
 python /dockerserver.py

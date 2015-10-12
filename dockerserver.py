@@ -5,6 +5,7 @@ import re
 import random
 import string
 import ssl
+import docker
 
 from functools import cmp_to_key
 
@@ -22,13 +23,11 @@ homedir_folder=os.getenv('DOCKERAPI_HOMEDIRS', "/var/homedirs/")
 
 # tls auth for swarm cluster
 tls_config = TLSConfig(
- client_cert=('/certs/virtualfactory.crt', '/certs/virtualfactory.key'),
- verify='/certs/ca.crt',
- ca_cert='/certs/ca.crt'
-)
+ client_cert=('/certs/virtualfactory.crt', '/certs/virtualfactory.key'), verify='/certs/ca.crt', 
+ca_cert='/certs/ca.crt' )
 
 c = Client(base_url='https://swarm-manager:2375', tls=tls_config) #, version=version)
-
+#c = Client(base_url='unix:///var/run/docker.sock')
 app = Flask(__name__)
 
 def get_pass(n):
@@ -39,11 +38,16 @@ def validate(test_str):
     p = re.compile(u'.*')
     return re.search(p, test_str).group(0)
 
-def first_ok_port():
+@app.route('/gc')
+def garbage_collector():
+    count=0
     # Garbage collect
-    for d in c.containers(all=True,filters={"status":"exited"}):
+    for d in c.containers(all=True,filters={"status":"exited","label":"virtualfactory=yes"}):
         c.remove_container(d)
-        
+        count=count+1
+    return str(count)
+
+def first_ok_port():
     l = c.containers(all=True)#, quiet=True)
     ports_list = []
     for i in l:
@@ -70,6 +74,7 @@ def index():
 
 @app.route('/create', methods=['GET'])
 def get_task():
+    garbage_collector()
     
     port = first_ok_port()
     if port == None:
@@ -77,7 +82,7 @@ def get_task():
     
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
-    
+   
     if (len(usr) == 0):
         return "User not valid"
     if (len(img) == 0):
@@ -91,8 +96,8 @@ def get_task():
     
     #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
     hostcfg = c.create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
-    
-    container = c.create_container(detach=True, tty=True, image=img, hostname=str(port), environment=confdict,
+
+    container = c.create_container(labels={"virtualfactory":"yes"},detach=True, tty=True, image=img, hostname=str(port), environment=confdict,
                                    volumes=['%s/%s' % (homedir_folder, usr)], host_config=hostcfg, ports=[port])
     resp = c.start(container=container.get('Id'))
 
@@ -101,6 +106,6 @@ def get_task():
 
     url = "/vnc.html?resize=scale&path=/socket/%s/%s&autoconnect=1&password=%s" % (nodeaddr, port, confdict['VNCPASS'])
     return url
-    
+
 if __name__ == '__main__':
     app.run(debug=True)
