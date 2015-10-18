@@ -4,10 +4,10 @@
 [[ "$DOCKERAPI_END_PORT" != "" ]] || export DOCKERAPI_END_PORT=2000
 [[ "$DOCKERAPI_HOSTNAME" != "" ]] || export DOCKERAPI_HOSTNAME="dockers.wikitolearn.org"
 
-[[ "$DOCKERAPI_HOSTS" != "" ]] || DOCKERAPI_HOSTS="172.17.42.1"
+[[ "$DOCKERAPI_HOSTS" != "" ]] || export DOCKERAPI_HOSTS="172.17.42.1"
 
-[[ "$DOCKERAPI_USER" != "" ]] || DOCKERAPI_USER="admin"
-[[ "$DOCKERAPI_PASS" != "" ]] || DOCKERAPI_PASS="admin"
+[[ "$DOCKERAPI_USER" != "" ]] || export DOCKERAPI_USER="admin"
+[[ "$DOCKERAPI_PASS" != "" ]] || export DOCKERAPI_PASS="admin"
 
 echo $DOCKERAPI_USER:$(perl -le 'print crypt("'$DOCKERAPI_PASS'", "Salt-hash")') > /var/www/htpasswd
 
@@ -25,7 +25,7 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
  openssl rsa -passin pass:x -in server.pass.key -out /etc/ssl/private/nginx.key
  rm server.pass.key
- openssl req -new -key /etc/ssl/private/nginx.key -out server.csr -subj "/C=IT/ST=Italia/L=Milano/O=WikiFM/OU=IT Department/CN=www.wikifm.org"
+ openssl req -new -key /etc/ssl/private/nginx.key -out server.csr -subj "/C=IT/ST=Italia/L=Milano/O=WikiToLearn/OU=IT Department/CN=www.wikitolearn.org"
  openssl x509 -req -days 365000 -in server.csr -signkey /etc/ssl/private/nginx.key -out /etc/ssl/certs/nginx.crt
  rm server.csr
 fi

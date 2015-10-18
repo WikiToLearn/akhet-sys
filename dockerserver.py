@@ -1,11 +1,12 @@
 #!/usr/bin/python
-from flask import Flask, jsonify, abort, request
+from flask import Flask, jsonify, abort, request, current_app
 import os
 import re
 import random
 import string
 import ssl
 import docker
+import sys
 
 from functools import cmp_to_key
 
@@ -18,16 +19,22 @@ from docker.utils import compare_version
 start_port=int(os.getenv('DOCKERAPI_START_PORT', 1000))
 end_port=int(os.getenv('DOCKERAPI_END_PORT', 1050))
 external_port=int(os.getenv('DOCKERAPI_EXTERNAL_PORT', 80))
-hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikifm.org")
+external_ssl_port=int(os.getenv('DOCKERAPI_EXTERNAL_SSL_PORT', 443))
+hostn=os.getenv('DOCKERAPI_HOSTNAME', "dockers.wikitolearn.org")
 homedir_folder=os.getenv('DOCKERAPI_HOMEDIRS', "/var/homedirs/")
+direct_access_to_nodes=os.getenv('DOCKERAPI_DIRECT_NODES', "no")
 
-# tls auth for swarm cluster
-tls_config = TLSConfig(
- client_cert=('/certs/virtualfactory.crt', '/certs/virtualfactory.key'), verify='/certs/ca.crt', 
-ca_cert='/certs/ca.crt' )
+swarm_cluster=os.path.exists("/var/run/docker.sock")==False
 
-c = Client(base_url='https://swarm-manager:2375', tls=tls_config) #, version=version)
-#c = Client(base_url='unix:///var/run/docker.sock')
+if swarm_cluster:
+    print "Using swarm cluster"
+    # tls auth for swarm cluster
+    tls_config = TLSConfig( client_cert=('/certs/virtualfactory.crt', '/certs/virtualfactory.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
+    c = Client(base_url='https://swarm-manager:2375', tls=tls_config) # connect to swarm manager node
+else:
+    print "Using single node"
+    c = Client(base_url='unix:///var/run/docker.sock') # socket connection for single host
+
 app = Flask(__name__)
 
 def get_pass(n):
@@ -48,16 +55,27 @@ def garbage_collector():
     return str(count)
 
 def first_ok_port():
-    l = c.containers(all=True)#, quiet=True)
+    l = c.containers(all=True,filters={"label":"virtualfactory=yes"})#, quiet=True)
     ports_list = []
     for i in l:
         #if (len(i['Ports'])):
         ports = i['Ports']
+        try:
+            p = int(i["Labels"]["UsedPort"])
+            if p not in ports_list:
+                ports_list.append(p)
+        except:
+            print "Missing UsedPort"
         for port in ports:
             try:
-                ports_list.append(port['PublicPort'])
+                if port['PublicPort'] not in ports_list:
+                    ports_list.append(port['PublicPort'])
+                if port['PrivatePort'] not in ports_list: 
+                    ports_list.append(port['PrivatePort'])
             except:
                 continue;
+    print "Porte impegnate: " ,
+    print ports_list
     try_port = start_port
     while True:
         if try_port in ports_list:
@@ -70,12 +88,20 @@ def first_ok_port():
             
 @app.route('/')
 def index():
- return "WikiToLearn Docker Init"
+    return "WikiToLearn Docker Init"
+
+@app.route("/download", methods=['GET'])
+def get_download():
+    for line in c.pull("wikitolearn/virtualfactory-firewall", stream=True):
+        print " "
+        print line
+    for line in c.pull("wikitolearn/access-base", stream=True):
+        print " "
+        print line
+    return "OK"
 
 @app.route('/create', methods=['GET'])
 def get_task():
-    garbage_collector()
-    
     port = first_ok_port()
     if port == None:
         return "No machines available. Please try again later." # estimated time
@@ -88,24 +114,61 @@ def get_task():
     if (len(img) == 0):
         return "Image not valid"
 
-    img = "wikifm/%s" % img # only support official images
+    img = "wikitolearn/%s" % img # only support official images
+
+    try:
+        c.inspect_image(img)
+    except:
+        return "Missing image %s" % img
+
+    confdict = {}
+    confdict['NETWORK_TYPE'] = "limit"
+
+    # create firewall docker to limit network
+    hostcfg = c.create_host_config(port_bindings={6080:port},privileged=True)
+    container = c.create_container(name="virtualfactory-fw-"+str(port),host_config=hostcfg,
+                                   labels={"virtualfactory":"yes","UsedPort":str(port)},
+                                   detach=True, tty=True, image="wikitolearn/virtualfactory-firewall",
+                                   hostname="dockeraccess"+str(port), ports=[6080],
+                                   environment=confdict)
+    c.start(container=container.get('Id'))
+    firewallname = c.inspect_container(container=container.get('Id'))["Name"][1:]
 
     confdict = {}
     confdict['VNCPASS'] = get_pass(8)
     confdict['USER'] = usr
-    
-    #hostcfg = create_host_config(port_bindings={6080: ('127.0.0.1', port)})
-    hostcfg = c.create_host_config(port_bindings={6080: port}, binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
 
-    container = c.create_container(labels={"virtualfactory":"yes"},detach=True, tty=True, image=img, hostname=str(port), environment=confdict,
-                                   volumes=['%s/%s' % (homedir_folder, usr)], host_config=hostcfg, ports=[port])
-    resp = c.start(container=container.get('Id'))
+    hostcfg = c.create_host_config(network_mode="container:" + firewallname,
+                                   binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
+    container = c.create_container(name="virtualfactory-"+str(port),host_config=hostcfg,
+                                   labels={"virtualfactory":"yes","UsedPort":str(port)},
+                                   detach=True, tty=True, image=img,
+                                   hostname="dockeraccess"+str(port), # ports=[port],
+                                   environment=confdict, volumes=['%s/%s' % (homedir_folder, usr)])
+    c.start(container=container.get('Id'))
 
     # get node address
-    nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
+    if swarm_cluster:
+        nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
+    else:
+        nodeaddr = hostn
 
-    url = "/vnc.html?resize=scale&path=/socket/%s/%s&autoconnect=1&password=%s" % (nodeaddr, port, confdict['VNCPASS'])
-    return url
+    data = {"version":"0.1"}
+    data["instance_path"] = "/socket/%s/%s" % (nodeaddr,port)
+    data["instance_password"] = confdict['VNCPASS']
+    data["host_port"] = external_port
+    data["host_ssl_port"] = external_ssl_port
+    data["host_name"] = hostn
+    data["node_direct"] = direct_access_to_nodes == "yes"
+
+    callback = request.args.get('callback', False)
+    if callback:
+       content = str(callback) + '(' + str(jsonify(data).data) + ')'
+       resp = current_app.response_class(content, mimetype='application/json')
+    else:
+       resp = jsonify(data)
+
+    return resp
 
 if __name__ == '__main__':
     app.run(debug=True)

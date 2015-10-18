@@ -1,5 +1,10 @@
 server {
  listen 80;
+ listen 443 ssl;
+
+ ssl_certificate /etc/ssl/certs/nginx.crt;
+ ssl_certificate_key /etc/ssl/private/nginx.key;
+
  location / {
   root /var/www/html;
   index vnc.html;
@@ -13,6 +18,18 @@ server {
   proxy_set_header X-Real-IP $remote_addr;
   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
   proxy_set_header X-Forwarded-Proto $scheme;
+  if ($request_method = 'POST') {
+   add_header 'Access-Control-Allow-Origin' '*';
+   add_header 'Access-Control-Allow-Credentials' 'true';
+   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+  }
+  if ($request_method = 'GET') {
+   add_header 'Access-Control-Allow-Origin' '*';
+   add_header 'Access-Control-Allow-Credentials' 'true';
+   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
+   add_header 'Access-Control-Allow-Headers' 'DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
+  }
  }
  location ~ /socket/(?<dockerhost>.*)/(?<porta>.*) {
   if (-f /var/www/allowedports/$porta) {
@@ -24,44 +41,6 @@ server {
   }
 
   if ($test = AB) { 
-   proxy_pass http://$dockerhost:$porta;
-  }
-
-  proxy_http_version 1.1;
-  proxy_set_header Upgrade $http_upgrade;
-  proxy_set_header Connection "upgrade";
- }
-}
-
-server {
- listen 443;
- ssl on;
- ssl_certificate /etc/ssl/certs/nginx.crt;
- ssl_certificate_key /etc/ssl/private/nginx.key;
- location / {
-  root /var/www/html;
-  index vnc.html;
- }
- resolver 127.0.0.1;
- location /create {
-  auth_basic "Administrator Login";
-  auth_basic_user_file /var/www/htpasswd;
-  proxy_pass http://127.0.0.1:5000;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
- }
- location ~ /socket/(?<dockerhost>.*)/(?<porta>.*) {
-  if (-f /var/www/allowedports/$porta) {
-   set $test  A;
-  }
-
-  if (-f /var/www/allowedhosts/$dockerhost) {
-   set $test  "${test}B";
-  }
-
-  if ($test = AB) {
    proxy_pass http://$dockerhost:$porta;
   }
 

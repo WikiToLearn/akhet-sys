@@ -1,7 +1,9 @@
-FROM debian:sid
+FROM debian:stretch
+
 MAINTAINER wikitolearn sysadmin@wikitolearn.org
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN true
+
 RUN apt-get update
 RUN apt-get -y install zip unzip nano apt-utils curl rsync git && rm -f /var/cache/apt/archives/*deb
 
