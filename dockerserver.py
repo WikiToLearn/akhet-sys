@@ -92,10 +92,10 @@ def index():
 
 @app.route("/download", methods=['GET'])
 def get_download():
-    for line in c.pull("wikitolearn/virtualfactory-firewall", stream=True):
+    for line in c.pull("wikitolearndockeraccess/virtualfactory-firewall", stream=True):
         print " "
         print line
-    for line in c.pull("wikitolearn/access-base", stream=True):
+    for line in c.pull("wikitolearndockeraccess/access-base", stream=True):
         print " "
         print line
     return "OK"
@@ -114,7 +114,7 @@ def get_task():
     if (len(img) == 0):
         return "Image not valid"
 
-    img = "wikitolearn/%s" % img # only support official images
+    img = "wikitolearndockeraccess/%s" % img # only support official images
 
     try:
         c.inspect_image(img)
@@ -128,7 +128,7 @@ def get_task():
     hostcfg = c.create_host_config(port_bindings={6080:port},privileged=True)
     container = c.create_container(name="virtualfactory-fw-"+str(port),host_config=hostcfg,
                                    labels={"virtualfactory":"yes","UsedPort":str(port)},
-                                   detach=True, tty=True, image="wikitolearn/virtualfactory-firewall",
+                                   detach=True, tty=True, image="wikitolearndockeraccess/virtualfactory-firewall",
                                    hostname="dockeraccess"+str(port), ports=[6080],
                                    environment=confdict)
     c.start(container=container.get('Id'))
@@ -151,9 +151,9 @@ def get_task():
     if swarm_cluster:
         nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
     else:
-        nodeaddr = hostn
+        nodeaddr = "172.17.42.1"
 
-    data = {"version":"0.1"}
+    data = {"version":"0.3"}
     data["instance_path"] = "/socket/%s/%s" % (nodeaddr,port)
     data["instance_password"] = confdict['VNCPASS']
     data["host_port"] = external_port
