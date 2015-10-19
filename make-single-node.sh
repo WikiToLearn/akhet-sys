@@ -10,4 +10,4 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
  --privileged -p 80:80 -p 443:443 -dti --restart=always \
  -e DOCKERAPI_HOSTNAME=$DOCKERAPI_HOSTNAME \
  -e DOCKERAPI_HOMEDIRS=$DOCKERAPI_HOMEDIRS \
- wikitolearndockeraccess/virtualfactory
+ wikitolearndockeraccess/virtualfactory:0.4

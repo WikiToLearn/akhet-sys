@@ -50,6 +50,7 @@ def garbage_collector():
     count=0
     # Garbage collect
     for d in c.containers(all=True,filters={"status":"exited","label":"virtualfactory=yes"}):
+        print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
         c.remove_container(d)
         count=count+1
     return str(count)
@@ -108,7 +109,8 @@ def get_task():
     
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
-   
+    notimeout = request.args.get('notimeout') == "yes"
+
     if (len(usr) == 0):
         return "User not valid"
     if (len(img) == 0):
@@ -137,6 +139,8 @@ def get_task():
     confdict = {}
     confdict['VNCPASS'] = get_pass(8)
     confdict['USER'] = usr
+    if notimeout:
+        confdict['NOTIMEOUT'] = '1'
 
     hostcfg = c.create_host_config(network_mode="container:" + firewallname,
                                    binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
