@@ -45,6 +45,21 @@ def validate(test_str):
     p = re.compile(u'.*')
     return re.search(p, test_str).group(0)
 
+@app.route('/pull_images')
+def pull_images():
+    #print "Local images:"
+    #for image in c.images(filters={"label":"virtualfactoryimage=true"}):
+    #    print image['RepoTags']
+    #for image in c.images():
+    #    if len(image['RepoTags'])==1:
+    #        print image['RepoTags'][0]=='<none>:<none>'
+    print "Remote images:"
+    for image in c.search('wikitolearndockeraccess'):
+        if image['name'] != "wikitolearndockeraccess/virtualfactory":
+           print "Pulling " + image['name']
+           c.pull(image['name'], tag="latest")
+    return "OK"
+
 @app.route('/gc')
 def garbage_collector():
     count=0
@@ -91,16 +106,6 @@ def first_ok_port():
 def index():
     return "WikiToLearn Docker Init"
 
-@app.route("/download", methods=['GET'])
-def get_download():
-    for line in c.pull("wikitolearndockeraccess/virtualfactory-firewall", stream=True):
-        print " "
-        print line
-    for line in c.pull("wikitolearndockeraccess/access-base", stream=True):
-        print " "
-        print line
-    return "OK"
-
 @app.route('/create', methods=['GET'])
 def get_task():
     port = first_ok_port()
@@ -110,6 +115,7 @@ def get_task():
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
     notimeout = request.args.get('notimeout') == "yes"
+    shared = request.args.get('shared') == "yes"
 
     if (len(usr) == 0):
         return "User not valid"
@@ -123,16 +129,21 @@ def get_task():
     except:
         return "Missing image %s" % img
 
+    user_home_dir = '%s/%s' % (homedir_folder, usr)
+
     confdict = {}
     confdict['NETWORK_TYPE'] = "limit"
 
     # create firewall docker to limit network
     hostcfg = c.create_host_config(port_bindings={6080:port},privileged=True)
-    container = c.create_container(name="virtualfactory-fw-"+str(port),host_config=hostcfg,
-                                   labels={"virtualfactory":"yes","UsedPort":str(port)},
-                                   detach=True, tty=True, image="wikitolearndockeraccess/virtualfactory-firewall",
-                                   hostname="dockeraccess"+str(port), ports=[6080],
-                                   environment=confdict)
+    try:
+        container = c.create_container(name="virtualfactory-fw-"+str(port),host_config=hostcfg,
+                                       labels={"virtualfactory":"yes","UsedPort":str(port)},
+                                       detach=True, tty=True, image="wikitolearndockeraccess/virtualfactory-firewall",
+                                       hostname="dockeraccess"+str(port), ports=[6080],
+                                       environment=confdict)
+    except:
+        return "Missing firewall image"
     c.start(container=container.get('Id'))
     firewallname = c.inspect_container(container=container.get('Id'))["Name"][1:]
 
@@ -141,6 +152,8 @@ def get_task():
     confdict['USER'] = usr
     if notimeout:
         confdict['NOTIMEOUT'] = '1'
+    if shared:
+        confdict['SHARED'] = '1'
 
     hostcfg = c.create_host_config(network_mode="container:" + firewallname,
                                    binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
@@ -148,7 +161,7 @@ def get_task():
                                    labels={"virtualfactory":"yes","UsedPort":str(port)},
                                    detach=True, tty=True, image=img,
                                    hostname="dockeraccess"+str(port), # ports=[port],
-                                   environment=confdict, volumes=['%s/%s' % (homedir_folder, usr)])
+                                   environment=confdict, volumes=[user_home_dir])
     c.start(container=container.get('Id'))
 
     # get node address

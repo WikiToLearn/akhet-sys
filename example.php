@@ -1,6 +1,6 @@
 <?php
 
-$data = file_get_contents("http://admin:admin@127.0.0.1/create?user=test&image=dockeraccess-base");
+$data = file_get_contents("http://admin:admin@127.0.0.1/create?user=test&image=access-base");
 $obj = json_decode($data);
 if ($obj !== NULL) {
     var_dump($obj);

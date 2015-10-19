@@ -1,1 +1,2 @@
 * * * * * root wget -o /dev/null -O /dev/null http://127.0.0.1:5000/gc
+0 3 * * * root wget -o /dev/null -O /dev/null http://127.0.0.1:5000/pull_images
