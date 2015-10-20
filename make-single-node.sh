@@ -12,7 +12,6 @@ docker run -v /var/run/docker.sock:/var/run/docker.sock \
  -e DOCKERAPI_HOMEDIRS=$DOCKERAPI_HOMEDIRS \
  wikitolearndockeraccess/virtualfactory:0.5
 
-while ! docker exec -ti virtualfactory wget -o /dev/null -O - http://127.0.0.1:5000/pull_images
-do
+while ! docker exec -ti virtualfactory wget -o /dev/null -O - http://127.0.0.1:5000/pull_images ; do
  sleep 1
 done

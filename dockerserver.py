@@ -112,6 +112,8 @@ def get_task():
     if port == None:
         return "No machines available. Please try again later." # estimated time
     
+
+    user_env_vars =  request.args.getlist('env')
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
     notimeout = request.args.get('notimeout') == "yes"
@@ -154,6 +156,15 @@ def get_task():
         confdict['NOTIMEOUT'] = '1'
     if shared:
         confdict['SHARED'] = '1'
+
+    for var in user_env_vars:
+        var_split=var.split('=')
+        if len(var_split) == 2:
+            var_name=var_split[0]
+            var_value=var_split[1]
+            print var_name, " => ", var_value
+            if not confdict.has_key(var_name):
+                confdict[var_name] = var_value
 
     hostcfg = c.create_host_config(network_mode="container:" + firewallname,
                                    binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
