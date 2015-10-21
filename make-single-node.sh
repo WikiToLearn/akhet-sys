@@ -1,5 +1,5 @@
 #!/bin/bash
-DOCKERAPI_HOSTNAME="192.168.93.30"
+DOCKERAPI_HOSTNAME="127.0.0.1"
 DOCKERAPI_HOMEDIRS="/var/homedirs/"
 
 docker stop virtualfactory

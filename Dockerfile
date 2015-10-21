@@ -18,7 +18,8 @@ RUN pip install docker-py flask
 
 WORKDIR /var/www/html
 RUN rm * -Rfv
-RUN git clone git://github.com/kanaka/noVNC .
+RUN git clone git://github.com/kanaka/noVNC viewer
+ADD ./index.html /var/www/html/index.html
 
 RUN apt-get -y install cron && rm -f /var/cache/apt/archives/*deb
 RUN apt-get -y install wget && rm -f /var/cache/apt/archives/*deb
