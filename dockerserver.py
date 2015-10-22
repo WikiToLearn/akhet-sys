@@ -1,5 +1,8 @@
+# -*- coding: utf-8 -*-
 #!/usr/bin/python
-from flask import Flask, jsonify, abort, request, current_app
+from flask import Flask, jsonify, abort, request, current_app, \
+                  session, g, redirect, url_for, abort, render_template, flash
+
 import os
 import re
 import random
@@ -7,6 +10,7 @@ import string
 import ssl
 import docker
 import sys
+import json
 
 from functools import cmp_to_key
 
@@ -106,19 +110,8 @@ def first_ok_port():
 def index():
     return "WikiToLearn Docker Init"
 
-@app.route('/create', methods=['GET'])
-def get_task():
-    port = first_ok_port()
-    if port == None:
-        return "No machines available. Please try again later." # estimated time
-    
 
-    user_env_vars =  request.args.getlist('env')
-    usr = validate(request.args.get('user'))
-    img = validate(request.args.get('image'))
-    notimeout = request.args.get('notimeout') == "yes"
-    shared = request.args.get('shared') == "yes"
-
+def do_instanciate(usr, img):
     if (len(usr) == 0):
         return "User not valid"
     if (len(img) == 0):
@@ -198,5 +191,48 @@ def get_task():
 
     return resp
 
+@app.route('/create', methods=['GET'])
+def get_task():
+    port = first_ok_port()
+    if port == None:
+        return "No machines available. Please try again later." # estimated time
+    
+
+    user_env_vars =  request.args.getlist('env')
+    usr = validate(request.args.get('user'))
+    img = validate(request.args.get('image'))
+    notimeout = request.args.get('notimeout') == "yes"
+    shared = request.args.get('shared') == "yes"
+    
+    return do_instanciate(usr, img)
+
+#=======================
+### WEB INTERFACE
+#=======================
+
+
+@app.route('/web/')
+def show_entries():
+    #cur = g.db.execute('select title, text from entries order by id desc')
+    #entries = [dict(title=row[0], text=row[1]) for row in cur.fetchall()]
+    return render_template('marketplace.html')
+# login data -> env 
+
+@app.route('/web/get_url')
+def get_url():
+    url = "//%s/" % hostn
+    
+    # Demo data
+    usr = "User"
+    img = "access-base"
+    
+    data = json.loads(do_instanciate(usr, img))
+    vncopens = "%svnc.html?resize=scale&autoconnect=1&host=%s&port=%s&password=%s&path=%s"% (url, data['host_name'], data['host_port'], data['instance_password'], data['instance_path'])
+
+    #cur = g.db.execute('select title, text from entries order by id desc')
+    ##entries = [dict(title=row[0], text=row[1]) for row in cur.fetchall()]
+    return render_template('url.html', url=vncopens)
+
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()

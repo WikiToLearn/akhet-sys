@@ -1,0 +1,8 @@
+{% extends "home.html" %}
+{% block body %}
+  <h2>Maketplace Instance</h2>
+  {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
+  <ul>
+      <li><a href="{{ url_for('get_url') }}">Base image</a></li>
+  </ul>
+{% endblock %}
