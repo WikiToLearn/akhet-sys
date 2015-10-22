@@ -29,6 +29,8 @@ RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
 
 ADD ./dockerserver.py /dockerserver.py
+ADD ./templates /templates
+ADD ./static /static
 ADD ./run.sh /run.sh
 
 EXPOSE 80 443
