@@ -112,6 +112,14 @@ def index():
 
 
 def do_instanciate(usr, img):
+    
+    user_env_vars =  request.args.getlist('env')
+    notimeout = request.args.get('notimeout') == "yes"
+    shared = request.args.get('shared') == "yes"
+    port = first_ok_port()
+    if port == None:
+        return "No machines available. Please try again later." # estimated time
+    
     if (len(usr) == 0):
         return "User not valid"
     if (len(img) == 0):
@@ -193,16 +201,8 @@ def do_instanciate(usr, img):
 
 @app.route('/create', methods=['GET'])
 def get_task():
-    port = first_ok_port()
-    if port == None:
-        return "No machines available. Please try again later." # estimated time
-    
-
-    user_env_vars =  request.args.getlist('env')
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
-    notimeout = request.args.get('notimeout') == "yes"
-    shared = request.args.get('shared') == "yes"
     
     return do_instanciate(usr, img)
 
@@ -226,7 +226,10 @@ def get_url():
     usr = "User"
     img = "access-base"
     
-    data = json.loads(do_instanciate(usr, img))
+    a = do_instanciate(usr, img)
+    
+    #return 
+    data = json.loads(a.get_data())
     vncopens = "%svnc.html?resize=scale&autoconnect=1&host=%s&port=%s&password=%s&path=%s"% (url, data['host_name'], data['host_port'], data['instance_password'], data['instance_path'])
 
     #cur = g.db.execute('select title, text from entries order by id desc')
@@ -235,4 +238,4 @@ def get_url():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
