@@ -202,12 +202,12 @@ def show_entries():
     imagelist = []
     for i in imagefulllist:
         imageFullName = i['RepoTags'][0]
-        imageFullName = imageFullName.replace('wikitolearndockeraccess/', '')
+        imageFullName = imageFullName.replace('wikitolearndockeraccess/', '', 1)
         
         if (imageFullName.split(':')[0] != 'virtualfactory'):
             imagelist.append(imageFullName)
     #print imagelist
-    return render_template('marketplace.html', images=imagelist)
+    return render_template('marketplace.html', images=sorted(imagelist))
 # login data -> env 
 
 @app.route('/web/get_url', methods=['GET'])
