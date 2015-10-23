@@ -45,7 +45,7 @@ def get_pass(n):
     return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(n))
 
 def validate(test_str):
-    p = re.compile(u'[a-zA-Z0-9\-]*')
+    p = re.compile(u'[a-zA-Z0-9\-:]*')
     p = re.compile(u'.*')
     return re.search(p, test_str).group(0)
 
@@ -213,18 +213,25 @@ def get_task():
 
 @app.route('/web/')
 def show_entries():
-    #cur = g.db.execute('select title, text from entries order by id desc')
-    #entries = [dict(title=row[0], text=row[1]) for row in cur.fetchall()]
-    return render_template('marketplace.html')
+    imagefulllist = c.images(name="wikitolearndockeraccess/*")
+    imagelist = []
+    for i in imagefulllist:
+        imageFullName = i['RepoTags'][0]
+        imageFullName = imageFullName.replace('wikitolearndockeraccess/', '')
+        
+        if (imageFullName.split(':')[0] != 'virtualfactory'):
+            imagelist.append(imageFullName)
+    #print imagelist
+    return render_template('marketplace.html', images=imagelist)
 # login data -> env 
 
-@app.route('/web/get_url')
+@app.route('/web/get_url', methods=['GET'])
 def get_url():
     url = "//%s/" % hostn
     
     # Demo data
     usr = "User"
-    img = "access-base"
+    img = validate(request.args.get('image'))
     
     a = do_instanciate(usr, img)
     

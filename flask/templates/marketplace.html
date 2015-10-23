@@ -3,6 +3,8 @@
   <h2>Maketplace Instance</h2>
   {% if error %}<p class=error><strong>Error:</strong> {{ error }}{% endif %}
   <ul>
-      <li><a href="{{ url_for('get_url') }}">Base image</a></li>
+    {% for image in images %}
+      <li><a href="{{ url_for('get_url') }}?image={{image}}">{{image}}</a></li>
+    {% endfor %}
   </ul>
 {% endblock %}
