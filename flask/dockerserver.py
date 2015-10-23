@@ -49,22 +49,7 @@ def validate(test_str):
     p = re.compile(u'.*')
     return re.search(p, test_str).group(0)
 
-@app.route('/pull_images')
-def pull_images():
-    #print "Local images:"
-    #for image in c.images(filters={"label":"virtualfactoryimage=true"}):
-    #    print image['RepoTags']
-    #for image in c.images():
-    #    if len(image['RepoTags'])==1:
-    #        print image['RepoTags'][0]=='<none>:<none>'
-    print "Remote images:"
-    for image in c.search('wikitolearndockeraccess'):
-        if image['name'] != "wikitolearndockeraccess/virtualfactory":
-           print "Pulling " + image['name']
-           c.pull(image['name'], tag="latest")
-    return "OK"
-
-@app.route('/gc')
+@app.route('/api/gc')
 def garbage_collector():
     count=0
     # Garbage collect
@@ -199,7 +184,7 @@ def do_instanciate(usr, img):
 
     return resp
 
-@app.route('/create', methods=['GET'])
+@app.route('/api/create', methods=['GET'])
 def get_task():
     usr = validate(request.args.get('user'))
     img = validate(request.args.get('image'))
