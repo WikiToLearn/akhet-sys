@@ -222,7 +222,7 @@ def get_url():
     
     #return 
     data = json.loads(a.get_data())
-    vncopens = "%svnc.html?resize=scale&autoconnect=1&host=%s&port=%s&password=%s&path=%s"% (url, data['host_name'], data['host_port'], data['instance_password'], data['instance_path'])
+    vncopens = "%svnc.html?resize=scale&autoconnect=1&host=%s&port=%s&password=%s&path=%s&encrypted=1"% (url, data['host_name'], data['host_ssl_port'], data['instance_password'], data['instance_path'])
 
     #cur = g.db.execute('select title, text from entries order by id desc')
     ##entries = [dict(title=row[0], text=row[1]) for row in cur.fetchall()]
@@ -230,4 +230,4 @@ def get_url():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
