@@ -6,5 +6,6 @@
     {% for image in images %}
       <li><a href="{{ url_for('get_url') }}?image={{image}}">{{image}}</a></li>
     {% endfor %}
+    <li><b><a href="{{ url_for('get_url') }}?image=remotevnc:lastest&env=REMOTEVNC_PASSWORD=fnaldemopass&env=REMOTEVNC_HOST=131.225.86.89">Permanent VNC Demo for FNAL</a></b></li>
   </ul>
 {% endblock %}
