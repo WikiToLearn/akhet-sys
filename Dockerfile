@@ -35,3 +35,5 @@ ADD ./default /etc/nginx/sites-available/default
 ADD ./run.sh /run.sh
 ADD flask /flask
 
+# Custom Branding
+ADD favicon.ico /var/www/html/viewer/images/favicon.ico
