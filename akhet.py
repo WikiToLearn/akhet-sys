@@ -33,7 +33,7 @@ swarm_cluster=os.path.exists("/var/run/docker.sock")==False
 if swarm_cluster:
     print "Using swarm cluster"
     # tls auth for swarm cluster
-    tls_config = TLSConfig( client_cert=('/certs/ahketinstance.crt', '/certs/ahketinstance.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
+    tls_config = TLSConfig( client_cert=('/certs/akhet.crt', '/certs/akhet.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
     c = Client(base_url='https://swarm-manager:2375', tls=tls_config) # connect to swarm manager node
 else:
     print "Using single node"
@@ -42,6 +42,7 @@ else:
 app = Flask(__name__)
 
 def resp_json(data):
+    data["version"] = "0.8" # return akhet version
     callback = request.args.get('callback', False)
     if callback:
        content = str(callback) + '(' + str(jsonify(data).data) + ')'
@@ -59,7 +60,7 @@ def validate(test_str):
     return re.search(p, test_str).group(0)
 
 def first_ok_port():
-    l = c.containers(all=True,filters={"label":"ahketinstance=yes"})#, quiet=True)
+    l = c.containers(all=True,filters={"label":"akhetinstance=yes"})#, quiet=True)
     ports_list = []
     for i in l:
         #if (len(i['Ports'])):
@@ -74,8 +75,8 @@ def first_ok_port():
             try:
                 if port['PublicPort'] not in ports_list:
                     ports_list.append(port['PublicPort'])
-                if port['PrivatePort'] not in ports_list: 
-                    ports_list.append(port['PrivatePort'])
+                #if port['PrivatePort'] not in ports_list: 
+                #    ports_list.append(port['PrivatePort'])
             except:
                 continue;
     print "Porte impegnate: " ,
@@ -99,7 +100,7 @@ def index():
 def do_0_1_gc():
     count=0
     # Garbage collect
-    for d in c.containers(all=True,filters={"status":"exited","label":"ahketinstance=yes"}):
+    for d in c.containers(all=True,filters={"status":"exited","label":"akhetinstance=yes"}):
         print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
         c.remove_container(d)
         count=count+1
@@ -137,10 +138,10 @@ def do_0_1_create():
     # create firewall docker to limit network
     hostcfg = c.create_host_config(port_bindings={6080:port},privileged=True)
     try:
-        container = c.create_container(name="ahketinstance-fw-"+str(port),host_config=hostcfg,
-                                       labels={"ahketinstance":"yes","UsedPort":str(port)},
+        container = c.create_container(name="akhetinstance-fw-"+str(port),host_config=hostcfg,
+                                       labels={"akhetinstance":"yes","UsedPort":str(port)},
                                        detach=True, tty=True, image="akhetbase/akhet-firewall",
-                                       hostname="ahketinstance"+str(port), ports=[6080],
+                                       hostname="akhetinstance"+str(port), ports=[6080],
                                        environment=confdict)
     except:
         return resp_json({"errorno":5,"error":"Missing firewall image"})
@@ -166,10 +167,10 @@ def do_0_1_create():
 
     hostcfg = c.create_host_config(network_mode="container:" + firewallname,
                                    binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
-    container = c.create_container(name="ahketinstance-"+str(port),host_config=hostcfg,
-                                   labels={"ahketinstance":"yes","UsedPort":str(port)},
+    container = c.create_container(name="akhetinstance-"+str(port),host_config=hostcfg,
+                                   labels={"akhetinstance":"yes","UsedPort":str(port)},
                                    detach=True, tty=True, image=img,
-                                   hostname="ahketinstance"+str(port), # ports=[port],
+                                   hostname="akhetinstance"+str(port), # ports=[port],
                                    environment=confdict, volumes=[user_home_dir])
     c.start(container=container.get('Id'))
 
@@ -179,7 +180,7 @@ def do_0_1_create():
     else:
         nodeaddr = "172.17.42.1"
 
-    data = {"version":"0.8"} # return akhet version
+    data = {}
     data["instance_node"] = nodeaddr # return node where akhet instance is running
     data["instance_port"] = nodeaddr # return node port where akhet instance is running
     data["instance_path"] = "/socket/%s/%s" % (nodeaddr,port) #  return socket port if ahket as proxy
@@ -188,6 +189,15 @@ def do_0_1_create():
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
     data["host_name"] = hostn # return akhet hostn
     data["node_direct"] = direct_access_to_nodes == "yes" # return if akhet installation require a direct node link
+
+    return resp_json(data)
+
+@app.route('/0.1/hostinfo')
+def do_0_1_hostinfo():
+    data = {}
+    data["host_port"] = external_port # return akhet unssl port
+    data["host_ssl_port"] = external_ssl_port # return akhet ssl port
+    data["host_name"] = hostn # return akhet hostn
 
     return resp_json(data)
 
@@ -224,6 +234,12 @@ def do_0_1_pullimage():
 
     for line in c.pull("akhet/"+img, tag="latest", stream=True):
         return resp_json({"statusno":1,"message":"Pulling started..."})
+
+@app.route('/0.1/pullimagesystem')
+def do_0_1_pullimagesystem():
+    for line in c.pull("akhetbase/akhet-firewall", tag="latest", stream=True):
+        break
+    return resp_json({"statusno":1,"message":"Pulling started..."})
 
 if __name__ == '__main__':
     app.run(debug=True)
