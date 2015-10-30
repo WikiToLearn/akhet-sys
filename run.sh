@@ -1,23 +1,23 @@
 #!/bin/bash
 
-[[ "$DOCKERAPI_START_PORT" != "" ]] || export DOCKERAPI_START_PORT=1000
-[[ "$DOCKERAPI_END_PORT" != "" ]] || export DOCKERAPI_END_PORT=2000
-[[ "$DOCKERAPI_HOSTNAME" != "" ]] || export DOCKERAPI_HOSTNAME="dockers.wikitolearn.org"
+[[ "$AKHET_START_PORT" != "" ]] || export AKHET_START_PORT=1000
+[[ "$AKHET_END_PORT" != "" ]] || export AKHET_END_PORT=2000
+[[ "$AKHET_HOSTNAME" != "" ]] || export AKHET_HOSTNAME="dockers.wikitolearn.org"
 
-[[ "$DOCKERAPI_HOSTS" != "" ]] || export DOCKERAPI_HOSTS="172.17.42.1"
+[[ "$AKHET_HOSTS" != "" ]] || export AKHET_HOSTS="172.17.42.1"
 
-[[ "$DOCKERAPI_USER" != "" ]] || export DOCKERAPI_USER="admin"
-[[ "$DOCKERAPI_PASS" != "" ]] || export DOCKERAPI_PASS="admin"
+[[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
+[[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
 
-echo $DOCKERAPI_USER:$(perl -le 'print crypt("'$DOCKERAPI_PASS'", "Salt-hash")') > /var/www/htpasswd
+echo $AKHET_USER:$(perl -le 'print crypt("'$AKHET_PASS'", "Salt-hash")') > /var/www/htpasswd
 
-if [ -f /certs/virtualfactory.crt ] ; then
- echo "Copy /certs/virtualfactory.crt"
- cp /certs/virtualfactory.crt /etc/ssl/certs/nginx.crt
+if [ -f /certs/akhet.crt ] ; then
+ echo "Copy /certs/akhet.crt"
+ cp /certs/akhet.crt /etc/ssl/certs/nginx.crt
 fi
-if [ -f /certs/virtualfactory.key ] ; then
- echo "Copy /certs/virtualfactory.key"
- cp /certs/virtualfactory.key /etc/ssl/private/nginx.key
+if [ -f /certs/akhet.key ] ; then
+ echo "Copy /certs/akhet.key"
+ cp /certs/akhet.key /etc/ssl/private/nginx.key
 fi
 
 
@@ -34,8 +34,8 @@ if [ -d /var/www/allowedports/ ] ; then
  rm -Rf /var/www/allowedports/
 fi
 mkdir /var/www/allowedports/
-P=$DOCKERAPI_START_PORT
-while [[ $P -le $DOCKERAPI_END_PORT ]] ; do
+P=$AKHET_START_PORT
+while [[ $P -le $AKHET_END_PORT ]] ; do
  touch /var/www/allowedports/$P
  P=$(($P+1))
 done
@@ -44,7 +44,7 @@ if [ -d /var/www/allowedhosts/ ] ; then
  rm -Rf /var/www/allowedhosts/
 fi
 mkdir /var/www/allowedhosts/
-for allow_host in $DOCKERAPI_HOSTS ; do
+for allow_host in $AKHET_HOSTS ; do
  touch /var/www/allowedhosts/$allow_host
 done
 
@@ -53,4 +53,4 @@ done
 
 cron
 
-python /flask/dockerserver.py
+python /akhet.py
