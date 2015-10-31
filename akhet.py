@@ -42,13 +42,13 @@ else:
 app = Flask(__name__)
 
 def resp_json(data):
-    data["version"] = "0.8" # return akhet version
+    replaydata={"data":data,"version":"0.7"}
     callback = request.args.get('callback', False)
     if callback:
-       content = str(callback) + '(' + str(jsonify(data).data) + ')'
+       content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
        resp = current_app.response_class(content, mimetype='application/json')
     else:
-       resp = jsonify(data)
+       resp = jsonify(replaydata)
     return resp
 
 def get_pass(n):
@@ -93,7 +93,7 @@ def first_ok_port():
             
 @app.route('/')
 def index():
-    return "Akhet"
+    return resp_json("Akhet")
 
 @app.route('/gc')
 @app.route('/0.1/gc')
@@ -203,26 +203,23 @@ def do_0_1_hostinfo():
 
 @app.route('/0.1/imagesonline')
 def do_0_1_imagesonline():
-    data={}
-    i=0
+    data=[]
     for image in c.search('akhet'):
         if image['name'].startswith("akhet/"):
-           data[i] = image['name'][6:]
-           i=i+1
+           data.append(image['name'][6:])
            #c.pull(image['name'], tag="latest")
     return resp_json(data)
 
 @app.route('/0.1/imageslocal')
 def do_0_1_imageslocal():
     data={}
-    i=0
     for image in c.images():
         for image_tag in image['RepoTags']:
             if image_tag.startswith("akhet/"):
                 image_info = image_tag[6:].split(':')
-                if not image_info[0] in data.values():
-                    data[i] = image_info[0]
-                    i=i+1
+                if image_info[1] == "latest":
+                    if not image_info[0] in data:
+                        data[image_info[0]]=c.inspect_image(image_tag)
     return resp_json(data)
 
 @app.route('/0.1/pullimage')
