@@ -11,6 +11,9 @@ import ssl
 import docker
 import sys
 import json
+import threading
+import thread
+import time
 
 from functools import cmp_to_key
 
@@ -170,7 +173,6 @@ def do_0_1_create():
     container = c.create_container(name="akhetinstance-"+str(port),host_config=hostcfg,
                                    labels={"akhetinstance":"yes","UsedPort":str(port)},
                                    detach=True, tty=True, image=img,
-                                   hostname="akhetinstance"+str(port), # ports=[port],
                                    environment=confdict, volumes=[user_home_dir])
     c.start(container=container.get('Id'))
 
@@ -229,8 +231,22 @@ def do_0_1_pullimage():
     if (len(img) == 0):
         return resp_json({"errorno":4,"error":"Image not valid"})
 
+    for t in threading.enumerate():
+        print t
+        print "T:  >    " + t.getName()
+        if t.getName() == "pull-" + img:
+            return resp_json({"statusno":2,"message":"Pulling running..."})
+
+    thread.start_new_thread( thread_pull_image, (img, c, ) )
+    return resp_json({"statusno":1,"message":"Pulling started..."})
+
+def thread_pull_image( img , c ):
+    threading.currentThread().setName("pull-"+img)
+    print threading.currentThread().getName()
     for line in c.pull("akhet/"+img, tag="latest", stream=True):
-        return resp_json({"statusno":1,"message":"Pulling started..."})
+        print line
+    threading.currentThread().setName("finished")
+    print "End pulling " + img
 
 @app.route('/0.1/pullimagesystem')
 def do_0_1_pullimagesystem():
