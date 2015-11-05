@@ -180,7 +180,7 @@ def do_0_1_create():
     if swarm_cluster:
         nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
     else:
-        nodeaddr = "172.17.42.1"
+        nodeaddr = os.getenv('AKHET_SINGLE_NODE_BR_IP', "172.17.42.1")
 
     data = {}
     data["instance_node"] = nodeaddr # return node where akhet instance is running
