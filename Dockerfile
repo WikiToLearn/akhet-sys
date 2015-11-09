@@ -18,7 +18,7 @@ RUN pip install docker-py flask
 WORKDIR /var/www/html
 RUN rm /var/www/html/* -Rfv
 
-ADD ./dockerservercron /etc/cron.d/
+ADD ./akhetcron /etc/cron.d/
 
 RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
