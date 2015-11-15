@@ -134,7 +134,7 @@ def do_0_1_gc():
         print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
         c.remove_container(d)
         count = count + 1
-    return resp_json({"deletedcount":count, "cose":config.sections()})
+    return resp_json({"deletedcount":count})
 
 @app.route('/0.1/create', methods=['GET'])
 def do_0_1_create():
@@ -184,11 +184,17 @@ def do_0_1_create():
     # create firewall docker to limit network
     hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
     try:
-        container = c.create_container(name="akhetinstance-fw-" + str(port), host_config=hostcfg,
-                                       labels={"akhetinstance":"yes", "UsedPort":str(port)},
-                                       detach=True, tty=True, image="akhetbase/akhet-firewall",
-                                       hostname="akhetinstance" + str(port), ports=[6080],
-                                       environment=confdict)
+        container_fw_data = {}
+        container_fw_data["name"] = "akhetinstance-fw-" + str(port)
+        container_fw_data["host_config"] = hostcfg
+        container_fw_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+        container_fw_data["detach"] = True
+        container_fw_data["tty"] = True
+        container_fw_data["image"] = "akhetbase/akhet-firewall"
+        container_fw_data["hostname"] = "akhetinstance" + str(port)
+        container_fw_data["ports"] = [6080]
+        container_fw_data["environment"] = confdict
+        container = c.create_container( **container_fw_data)
     except:
         return resp_json({"errorno":5, "error":"Missing firewall image"})
     c.start(container=container.get('Id'))
@@ -210,13 +216,26 @@ def do_0_1_create():
             print var_name, " => ", var_value
             if not confdict.has_key(var_name):
                 confdict[var_name] = var_value
-
-    hostcfg = c.create_host_config(network_mode="container:" + firewallname,
-                                   binds=['%s/%s:/home/user' % (homedir_folder, usr)])
-    container = c.create_container(name="akhetinstance-" + str(port), host_config=hostcfg,
-                                   labels={"akhetinstance":"yes", "UsedPort":str(port)},
-                                   detach=True, tty=True, image=img,
-                                   environment=confdict, volumes=[user_home_dir])
+    hostcfg_data={}
+    container_data = {}
+    if resource in profiles["resource"].keys():
+        if profiles["resource"][resource]['ram'] != None:
+            hostcfg_data["mem_limit"] = profiles["resource"][resource]['ram']
+    
+    hostcfg_data["network_mode"]="container:" + firewallname
+    hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, usr)]
+    hostcfg = c.create_host_config(**hostcfg_data)
+    
+    
+    container_data["name"] = "akhetinstance-" + str(port)
+    container_data["host_config"] = hostcfg
+    container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+    container_data["detach"] = True
+    container_data["tty"] = True
+    container_data["image"] = img
+    container_data["environment"] = confdict
+    container_data["volumes"] = [user_home_dir]
+    container = c.create_container( **container_data)
     c.start(container=container.get('Id'))
 
     # get node address
@@ -277,13 +296,13 @@ def do_0_1_pullimage():
         if t.getName() == "pull-" + img:
             return resp_json({"statusno":2, "message":"Pulling running..."})
 
-    thread.start_new_thread(thread_pull_image, (img, c, ))
+    thread.start_new_thread(thread_pull_image, (img, c,))
     return resp_json({"statusno":1, "message":"Pulling started..."})
 
 @app.route('/0.1/pullimagesystem')
 def do_0_1_pullimagesystem():
     img = "akhetbase/akhet-firewall"
-    thread.start_new_thread(thread_pull_image, (img, c, ))
+    thread.start_new_thread(thread_pull_image, (img, c,))
     return resp_json({"statusno":1, "message":"Pulling started..."})
 
 def thread_pull_image(img, c):
