@@ -1,42 +1,66 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
-from flask import Flask, jsonify, abort, request, current_app, \
-                  session, g, redirect, url_for, abort, render_template, flash
-
-import os
-import re
-import random
-import string
-import ssl
-import docker
-import sys
-import json
-import threading
-import thread
-import time
-
-from functools import cmp_to_key
-
-from docker.utils import create_host_config
+import ConfigParser
 from docker import Client
-from docker.tls import TLSConfig
 from docker.client import Client
-from docker.utils import compare_version
+from docker.tls import TLSConfig
+from flask import Flask
+from flask import current_app
+from flask import jsonify
+from flask import request
+import os
+import random
+import re
+import string
+import thread
+import threading
 
-start_port=int(os.getenv('AKHET_START_PORT', 1000))
-end_port=int(os.getenv('AKHET_END_PORT', 1050))
-external_port=int(os.getenv('AKHET_EXTERNAL_PORT', 80))
-external_ssl_port=int(os.getenv('AKHET_EXTERNAL_SSL_PORT', 443))
-hostn=os.getenv('AKHET_HOSTNAME', "dockers.wikitolearn.org")
-homedir_folder=os.getenv('AKHET_HOMEDIRS', "/var/homedirs/")
-direct_access_to_nodes=os.getenv('AKHET_DIRECT_NODES', "no")
+akhetconfig = ConfigParser.ConfigParser()
+akhetconfig.read("/akhet.ini")
 
-swarm_cluster=os.path.exists("/var/run/docker.sock")==False
+profile_options = {}
+profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blacklistdest', 'blacklistport']
+profile_options['resource'] = ['ram']
+
+profiles = {}
+for p in profile_options.keys():
+    profiles[p] = {}
+    options = profile_options[p]
+    if akhetconfig.has_option("Akhet", p + "profiles"):
+        for profilename in akhetconfig.get("Akhet", p + "profiles").split(','):
+            try:
+                if akhetconfig.has_section(p + ":" + profilename):
+                    profiles[p][profilename] = {}
+                    for o in options:
+                        if akhetconfig.has_option(p + ":" + profilename, o):
+                            profiles[p][profilename][o] = akhetconfig.get(p + ":" + profilename, o)
+                        else:
+                            profiles[p][profilename][o] = None
+                else:
+                    print "Missing ", profilename, " profile for ", p
+            except:
+                print "Error loading ", p, ":", profilename, " profile"
+
+    if 'default' not in profiles[p]:
+        print "Missing ", p, " default profile"
+        profiles[p]['default'] = {}
+        for o in options:
+            profiles[p]['default'][o] = None
+
+
+start_port = int(os.getenv('AKHET_START_PORT', 1000))
+end_port = int(os.getenv('AKHET_END_PORT', 1050))
+external_port = int(os.getenv('AKHET_EXTERNAL_PORT', 80))
+external_ssl_port = int(os.getenv('AKHET_EXTERNAL_SSL_PORT', 443))
+hostn = os.getenv('AKHET_HOSTNAME', "dockers.wikitolearn.org")
+homedir_folder = os.getenv('AKHET_HOMEDIRS', "/var/homedirs/")
+
+swarm_cluster = os.path.exists("/var/run/docker.sock") == False
 
 if swarm_cluster:
     print "Using swarm cluster"
     # tls auth for swarm cluster
-    tls_config = TLSConfig( client_cert=('/certs/akhet.crt', '/certs/akhet.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
+    tls_config = TLSConfig(client_cert=('/certs/akhet.crt', '/certs/akhet.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
     c = Client(base_url='https://swarm-manager:2375', tls=tls_config) # connect to swarm manager node
 else:
     print "Using single node"
@@ -45,25 +69,28 @@ else:
 app = Flask(__name__)
 
 def resp_json(data):
-    replaydata={"data":data,"version":"0.7"}
+    replaydata = {"data":data, "version":"0.7"}
     callback = request.args.get('callback', False)
     if callback:
-       content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
-       resp = current_app.response_class(content, mimetype='application/json')
+        content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
+        resp = current_app.response_class(content, mimetype='application/json')
     else:
-       resp = jsonify(replaydata)
+        resp = jsonify(replaydata)
     return resp
 
 def get_pass(n):
     return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(n))
 
 def validate(test_str):
-    p = re.compile(u'[a-zA-Z0-9\-:]*')
-    p = re.compile(u'.*')
-    return re.search(p, test_str).group(0)
+    try:
+        p = re.compile(u'[a-zA-Z0-9\-:]*')
+        p = re.compile(u'.*')
+        return re.search(p, test_str).group(0)
+    except:
+        return ""
 
 def first_ok_port():
-    l = c.containers(all=True,filters={"label":"akhetinstance=yes"})#, quiet=True)
+    l = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
     ports_list = []
     for i in l:
         #if (len(i['Ports'])):
@@ -82,7 +109,7 @@ def first_ok_port():
                 #    ports_list.append(port['PrivatePort'])
             except:
                 continue;
-    print "Porte impegnate: " ,
+    print "Porte impegnate: ",
     print ports_list
     try_port = start_port
     while True:
@@ -101,53 +128,69 @@ def index():
 @app.route('/gc')
 @app.route('/0.1/gc')
 def do_0_1_gc():
-    count=0
+    count = 0
     # Garbage collect
-    for d in c.containers(all=True,filters={"status":"exited","label":"akhetinstance=yes"}):
+    for d in c.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
         print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
         c.remove_container(d)
-        count=count+1
-    return resp_json({"deletedcount":count})
+        count = count + 1
+    return resp_json({"deletedcount":count, "cose":config.sections()})
 
 @app.route('/0.1/create', methods=['GET'])
 def do_0_1_create():
-    usr = validate(request.args.get('user',False))
-    img = validate(request.args.get('image',False))
+    usr = validate(request.args.get('user', False))
+    img = validate(request.args.get('image', False))
+    network = validate(request.args.get('network', False))
+    resource = validate(request.args.get('resource', False))
     
-    user_env_vars =  request.args.getlist('env')
+    if (len(network) == 0):
+        network = "default"
+    if (len(resource) == 0):
+        resource = "default"
+        
+    user_env_vars = request.args.getlist('env')
     notimeout = request.args.get('notimeout') == "yes"
     shared = request.args.get('shared') == "yes"
     port = first_ok_port()
     if port == None:
-        return resp_json({"errorno":2,"error":"No machines available. Please try again later."}) # estimated time
+        return resp_json({"errorno":2, "error":"No machines available. Please try again later."}) # estimated time
     
     if (len(usr) == 0):
-        return resp_json({"errorno":3,"error":"User not valid"})
+        return resp_json({"errorno":3, "error":"User not valid"})
     if (len(img) == 0):
-        return resp_json({"errorno":4,"error":"Image not valid"})
+        return resp_json({"errorno":4, "error":"Image not valid"})
 
     img = "akhet/%s" % img # only support official images
 
     try:
         c.inspect_image(img)
     except:
-        return resp_json({"errorno":1,"error":"Missing image %s" % img})
+        return resp_json({"errorno":1, "error":"Missing image %s" % img})
 
     user_home_dir = '%s/%s' % (homedir_folder, usr)
 
     confdict = {}
-    confdict['NETWORK_TYPE'] = "limit"
+    confdict['blacklistdest'] = None
+    confdict['blacklistport'] = None
+    confdict['allowddest'] = None
+    confdict['allowdport'] = None
+    confdict['defaultrule'] = None
+
+    for k in confdict.keys():
+        if network in profiles["network"].keys():
+            if profiles["network"][network][k] != None:
+                confdict[k] = ' '.join(profiles["network"][network][k].split(","))
 
     # create firewall docker to limit network
-    hostcfg = c.create_host_config(port_bindings={6080:port},privileged=True)
+    hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
     try:
-        container = c.create_container(name="akhetinstance-fw-"+str(port),host_config=hostcfg,
-                                       labels={"akhetinstance":"yes","UsedPort":str(port)},
+        container = c.create_container(name="akhetinstance-fw-" + str(port), host_config=hostcfg,
+                                       labels={"akhetinstance":"yes", "UsedPort":str(port)},
                                        detach=True, tty=True, image="akhetbase/akhet-firewall",
-                                       hostname="akhetinstance"+str(port), ports=[6080],
+                                       hostname="akhetinstance" + str(port), ports=[6080],
                                        environment=confdict)
     except:
-        return resp_json({"errorno":5,"error":"Missing firewall image"})
+        return resp_json({"errorno":5, "error":"Missing firewall image"})
     c.start(container=container.get('Id'))
     firewallname = c.inspect_container(container=container.get('Id'))["Name"][1:]
 
@@ -160,18 +203,18 @@ def do_0_1_create():
         confdict['SHARED'] = '1'
 
     for var in user_env_vars:
-        var_split=var.split('=')
+        var_split = var.split('=')
         if len(var_split) == 2:
-            var_name=var_split[0]
-            var_value=var_split[1]
+            var_name = var_split[0]
+            var_value = var_split[1]
             print var_name, " => ", var_value
             if not confdict.has_key(var_name):
                 confdict[var_name] = var_value
 
     hostcfg = c.create_host_config(network_mode="container:" + firewallname,
-                                   binds=['%s/%s:/home/user' % (homedir_folder, usr) ])
-    container = c.create_container(name="akhetinstance-"+str(port),host_config=hostcfg,
-                                   labels={"akhetinstance":"yes","UsedPort":str(port)},
+                                   binds=['%s/%s:/home/user' % (homedir_folder, usr)])
+    container = c.create_container(name="akhetinstance-" + str(port), host_config=hostcfg,
+                                   labels={"akhetinstance":"yes", "UsedPort":str(port)},
                                    detach=True, tty=True, image=img,
                                    environment=confdict, volumes=[user_home_dir])
     c.start(container=container.get('Id'))
@@ -184,14 +227,13 @@ def do_0_1_create():
 
     data = {}
     data["instance_node"] = nodeaddr # return node where akhet instance is running
-    data["instance_port"] = nodeaddr # return node port where akhet instance is running
-    data["instance_path"] = "/socket/%s/%s" % (nodeaddr,port) #  return socket port if ahket as proxy
+    data["instance_port"] = port # return node port where akhet instance is running
+    data["instance_path"] = "/socket/%s/%s" % (nodeaddr, port) #  return socket port if ahket as proxy
     data["instance_password"] = confdict['VNCPASS']  # return password for vnc instance
     data["host_port"] = external_port # return akhet unssl port
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
     data["host_name"] = hostn # return akhet hostn
-    data["node_direct"] = direct_access_to_nodes == "yes" # return if akhet installation require a direct node link
-
+   
     return resp_json(data)
 
 @app.route('/0.1/hostinfo')
@@ -205,54 +247,52 @@ def do_0_1_hostinfo():
 
 @app.route('/0.1/imagesonline')
 def do_0_1_imagesonline():
-    data=[]
+    data = []
     for image in c.search('akhet'):
         if image['name'].startswith("akhet/"):
-           data.append(image['name'][6:])
-           #c.pull(image['name'], tag="latest")
+            data.append(image['name'][6:])
+            #c.pull(image['name'], tag="latest")
     return resp_json(data)
 
 @app.route('/0.1/imageslocal')
 def do_0_1_imageslocal():
-    data={}
+    data = {}
     for image in c.images():
         for image_tag in image['RepoTags']:
             if image_tag.startswith("akhet/"):
                 image_info = image_tag[6:].split(':')
                 if image_info[1] == "latest":
                     if not image_info[0] in data:
-                        data[image_info[0]]=c.inspect_image(image_tag)
+                        data[image_info[0]] = c.inspect_image(image_tag)
     return resp_json(data)
 
 @app.route('/0.1/pullimage')
 def do_0_1_pullimage():
-    img = validate(request.args.get('image',False))
+    img = validate(request.args.get('image', False))
     
     if (len(img) == 0):
-        return resp_json({"errorno":4,"error":"Image not valid"})
+        return resp_json({"errorno":4, "error":"Image not valid"})
 
     for t in threading.enumerate():
-        print t
-        print "T:  >    " + t.getName()
         if t.getName() == "pull-" + img:
-            return resp_json({"statusno":2,"message":"Pulling running..."})
+            return resp_json({"statusno":2, "message":"Pulling running..."})
 
-    thread.start_new_thread( thread_pull_image, (img, c, ) )
-    return resp_json({"statusno":1,"message":"Pulling started..."})
-
-def thread_pull_image( img , c ):
-    threading.currentThread().setName("pull-"+img)
-    print threading.currentThread().getName()
-    for line in c.pull("akhet/"+img, tag="latest", stream=True):
-        print line
-    threading.currentThread().setName("finished")
-    print "End pulling " + img
+    thread.start_new_thread(thread_pull_image, (img, c, ))
+    return resp_json({"statusno":1, "message":"Pulling started..."})
 
 @app.route('/0.1/pullimagesystem')
 def do_0_1_pullimagesystem():
-    for line in c.pull("akhetbase/akhet-firewall", tag="latest", stream=True):
-        break
-    return resp_json({"statusno":1,"message":"Pulling started..."})
+    img = "akhetbase/akhet-firewall"
+    thread.start_new_thread(thread_pull_image, (img, c, ))
+    return resp_json({"statusno":1, "message":"Pulling started..."})
+
+def thread_pull_image(img, c):
+    threading.currentThread().setName("pull-" + img)
+    print threading.currentThread().getName()
+    for line in c.pull("akhet/" + img, tag="latest", stream=True):
+        print line
+    threading.currentThread().setName("finished")
+    print "End pulling " + img
 
 if __name__ == '__main__':
     app.run(debug=True)

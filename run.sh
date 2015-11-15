@@ -9,6 +9,8 @@
 [[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
 [[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
 
+[[ "$AKHET_AUTH_TYPE" != "" ]] || export AKHET_AUTH_TYPE="basic"
+
 echo $AKHET_USER:$(perl -le 'print crypt("'$AKHET_PASS'", "Salt-hash")') > /var/www/htpasswd
 
 if [ -f /certs/akhet.crt ] ; then
@@ -30,24 +32,22 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  rm server.csr
 fi
 
-if [ -d /var/www/allowedports/ ] ; then
- rm -Rf /var/www/allowedports/
-fi
-mkdir /var/www/allowedports/
+rm -Rf /var/www/socket_allowedports/
+rm -Rf /var/www/allowedhosts/
+
+mkdir /var/www/socket_allowedports/
 P=$AKHET_START_PORT
 while [[ $P -le $AKHET_END_PORT ]] ; do
- touch /var/www/allowedports/$P
+ touch /var/www/socket_allowedports/$P
  P=$(($P+1))
 done
 
-if [ -d /var/www/allowedhosts/ ] ; then
- rm -Rf /var/www/allowedhosts/
-fi
 mkdir /var/www/allowedhosts/
 for allow_host in $AKHET_HOSTS ; do
  touch /var/www/allowedhosts/$allow_host
 done
 
+sed -i 's/AKHET_AUTH_TYPE/'$AKHET_AUTH_TYPE'/g' /etc/nginx/sites-available/default
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
 

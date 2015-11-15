@@ -14,8 +14,9 @@ server {
 
  resolver 127.0.0.1;
  location ~* ^/(0\.1)/ {
-  auth_basic "Administrator Login";
-  auth_basic_user_file /var/www/htpasswd;
+
+  include /etc/nginx/common/auth-type/AKHET_AUTH_TYPE.conf;
+
   proxy_pass http://127.0.0.1:5000;
   proxy_set_header Host $host;
   proxy_set_header X-Real-IP $remote_addr;
@@ -35,7 +36,7 @@ server {
   }
  }
  location ~ /socket/(?<dockerhost>.*)/(?<porta>.*) {
-  if (-f /var/www/allowedports/$porta) {
+  if (-f /var/www/socket_allowedports/$porta) {
    set $test  A; 
   }
   if (-f /var/www/allowedhosts/$dockerhost) {
@@ -43,6 +44,9 @@ server {
   }
   if ($test = AB) { 
    proxy_pass $scheme://$dockerhost:$porta;
+  }
+  if ($test != AB) { 
+   return 501;
   }
   proxy_http_version 1.1;
   proxy_set_header Upgrade $http_upgrade;

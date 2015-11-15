@@ -22,6 +22,7 @@ ADD ./akhetcron /etc/cron.d/
 
 RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
+ADD ./nginx-auth-type /etc/nginx/common/auth-type
 
 ADD ./run.sh /run.sh
 RUN chmod +x /run.sh
@@ -32,3 +33,8 @@ CMD ["/run.sh"]
 
 ADD ./index.html /var/www/html/index.html
 ADD ./akhet.py /akhet.py
+ADD ./akhet.ini /akhet.ini
+
+WORKDIR /root
+
+VOLUME ["/var/log/", "/tmp/"]
