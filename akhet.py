@@ -140,8 +140,8 @@ def do_0_1_gc():
 def do_0_1_create():
     usr = validate(request.args.get('user', False))
     img = validate(request.args.get('image', False))
-    network = validate(request.args.get('network', False))
-    resource = validate(request.args.get('resource', False))
+    network = validate(request.args.get('network', ""))
+    resource = validate(request.args.get('resource', ""))
     
     if (len(network) == 0):
         network = "default"

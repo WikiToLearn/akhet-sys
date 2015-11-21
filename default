@@ -15,7 +15,8 @@ server {
  resolver 127.0.0.1;
  location ~* ^/(0\.1)/ {
 
-  include /etc/nginx/common/auth-type/AKHET_AUTH_TYPE.conf;
+  auth_basic "Administrator Login";
+  auth_basic_user_file /var/www/htpasswd;
 
   proxy_pass http://127.0.0.1:5000;
   proxy_set_header Host $host;

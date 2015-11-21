@@ -9,7 +9,6 @@
 [[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
 [[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
 
-[[ "$AKHET_AUTH_TYPE" != "" ]] || export AKHET_AUTH_TYPE="basic"
 
 echo $AKHET_USER:$(perl -le 'print crypt("'$AKHET_PASS'", "Salt-hash")') > /var/www/htpasswd
 
@@ -47,7 +46,6 @@ for allow_host in $AKHET_HOSTS ; do
  touch /var/www/allowedhosts/$allow_host
 done
 
-sed -i 's/AKHET_AUTH_TYPE/'$AKHET_AUTH_TYPE'/g' /etc/nginx/sites-available/default
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
 
