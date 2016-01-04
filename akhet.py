@@ -15,6 +15,31 @@ import string
 import thread
 import threading
 
+def try_read_config(section, option, default_argument=None):
+    if akhetconfig.has_option(section, option):
+        return akhetconfig.get(option, option)
+    else
+        return default_argument
+    
+def read_group_config(profile_list, section_prefix):
+    for profile in profile_list:
+        profile_section = "{}:{}".format(section_prefix, profile)
+        try:
+            if akhetconfig.has_section(profile_section):
+                profiles[section_prefix][profile] = {}
+                for option in profile_options[section_prefix]:
+                    profiles[section_prefix][profile][option] = try_read_config(profile_section, option)
+            else:
+                print "Missing ", profile, " profile for ", section_prefix
+        except:
+            print "Error loading ", section_prefix, ":", profile, " profile"
+            
+    if 'default' not in profile_list:
+        print "Missing ", section_prefix, " default profile"
+        profiles[section_prefix]['default'] = {}
+        for option in profile_options[section_prefix]:
+            profiles[section_prefix]['default'][option] = None
+        
 akhetconfig = ConfigParser.ConfigParser()
 akhetconfig.read("/akhet.ini")
 
@@ -23,48 +48,44 @@ profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blackl
 profile_options['resource'] = ['ram']
 
 profiles = {}
-for p in profile_options.keys():
-    profiles[p] = {}
-    options = profile_options[p]
-    if akhetconfig.has_option("Akhet", p + "profiles"):
-        for profilename in akhetconfig.get("Akhet", p + "profiles").split(','):
-            try:
-                if akhetconfig.has_section(p + ":" + profilename):
-                    profiles[p][profilename] = {}
-                    for o in options:
-                        if akhetconfig.has_option(p + ":" + profilename, o):
-                            profiles[p][profilename][o] = akhetconfig.get(p + ":" + profilename, o)
-                        else:
-                            profiles[p][profilename][o] = None
-                else:
-                    print "Missing ", profilename, " profile for ", p
-            except:
-                print "Error loading ", p, ":", profilename, " profile"
+profiles['network'] = []
+profiles['resource'] = []
+            
+network_profiles = try_read_config("Akhet", "network_profiles"))
+if network_profiles:
+    read_group_config(network_profiles.split(','), "network")
 
-    if 'default' not in profiles[p]:
-        print "Missing ", p, " default profile"
-        profiles[p]['default'] = {}
-        for o in options:
-            profiles[p]['default'][o] = None
+resource_profiles = try_read_config("Akhet", "resource_profiles"))
+if resource_profiles:
+    read_group_config(resource_profiles.split(','), "resource")
+
+start_port = int(try_read_config("Akhet", "start_port", 1000))
+end_port = int(try_read_config("Akhet", "end_port", 1050))
+external_port = int(try_read_config("Akhet", "external_port", 80))
+external_ssl_port = int(try_read_config("Akhet", "external_ssl_port", 443))
+
+connection_method = try_read_config("Akhet", "connection_method", "socket")
+remote_host = try_read_config("Akhet", "remote_host", "swarm-manager")
+remote_port = int(try_read_config("Akhet", "remote_port", 2375))
+ssl_key_file = try_read_config("Akhet", "ssl_key_file", "/akhet.key")
+ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
+ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
+socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
 
-start_port = int(os.getenv('AKHET_START_PORT', 1000))
-end_port = int(os.getenv('AKHET_END_PORT', 1050))
-external_port = int(os.getenv('AKHET_EXTERNAL_PORT', 80))
-external_ssl_port = int(os.getenv('AKHET_EXTERNAL_SSL_PORT', 443))
-hostn = os.getenv('AKHET_HOSTNAME', "dockers.wikitolearn.org")
-homedir_folder = os.getenv('AKHET_HOMEDIRS', "/var/homedirs/")
+public_hostname = try_read_config("Akhet", "public_hostname")
 
-swarm_cluster = os.path.exists("/var/run/docker.sock") == False
+swarm_cluster = os.environ.get('USING_SWARM')
+https_socket = os.environ.get('HTTPS_SOCKET')
 
-if swarm_cluster:
-    print "Using swarm cluster"
-    # tls auth for swarm cluster
-    tls_config = TLSConfig(client_cert=('/certs/akhet.crt', '/certs/akhet.key'), verify='/certs/ca.crt', ca_cert='/certs/ca.crt')
-    c = Client(base_url='https://swarm-manager:2375', tls=tls_config) # connect to swarm manager node
+if (connection_method == "socket"):  
+    print "Connecting through socket..." 
+    c = Client(base_url="unix:/{}".format(socket))
 else:
-    print "Using single node"
-    c = Client(base_url='unix:///var/run/docker.sock') # socket connection for single host
+    print "Connecting through TCP..."
+    # tls auth for swarm cluster
+    tls_config = TLSConfig(client_cert=(ssl_cert_file, ssl_key_file), verify=ssl_ca, ca_cert=ssl_ca)
+    c = Client(base_url='https://{}:{}'.format(remote_host, remote_port), tls=tls_config)
 
 app = Flask(__name__)
 
@@ -109,7 +130,7 @@ def first_ok_port():
                 #    ports_list.append(port['PrivatePort'])
             except:
                 continue;
-    print "Porte impegnate: ",
+    print "Used ports: ",
     print ports_list
     try_port = start_port
     while True:
@@ -136,18 +157,22 @@ def do_0_1_gc():
         count = count + 1
     return resp_json({"deletedcount":count})
 
+# JSONIFY!
 @app.route('/0.1/create', methods=['GET'])
 def do_0_1_create():
     usr = validate(request.args.get('user', False))
     img = validate(request.args.get('image', False))
     network = validate(request.args.get('network', ""))
     resource = validate(request.args.get('resource', ""))
+    uid = validate(request.args.get('uid', "")) # FIXME missing GIDs
     
     if (len(network) == 0):
         network = "default"
     if (len(resource) == 0):
         resource = "default"
-        
+    if (len(uid) == 0):
+        uid = "1000"
+    
     user_env_vars = request.args.getlist('env')
     notimeout = request.args.get('notimeout') == "yes"
     shared = request.args.get('shared') == "yes"
@@ -203,6 +228,7 @@ def do_0_1_create():
     confdict = {}
     confdict['VNCPASS'] = get_pass(8)
     confdict['USER'] = usr
+    confdict['UID'] = uid
     if notimeout:
         confdict['NOTIMEOUT'] = '1'
     if shared:
@@ -239,6 +265,7 @@ def do_0_1_create():
     c.start(container=container.get('Id'))
 
     # get node address
+    # FIXME: check if we're really in a docker swarm
     if swarm_cluster:
         nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
     else:
