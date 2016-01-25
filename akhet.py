@@ -314,6 +314,10 @@ def do_create(confbunch):
     container_data["image"] = completeImg
     container_data["environment"] = confdict
     container_data["volumes"] = [user_home_dir]
+    
+    if(confbunch.enable_cuda):
+        container_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev//dev/nvidia0']
+    
     container = c.create_container( **container_data)
     c.start(container=container.get('Id'))
 
