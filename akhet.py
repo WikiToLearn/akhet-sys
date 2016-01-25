@@ -80,8 +80,7 @@ homedir_folder = try_read_config("Akhet", "homes_basepath", "/var/homedirs")
 
 public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
-swarm_cluster = os.environ.get('USING_SWARM')
-https_socket = os.environ.get('HTTPS_SOCKET')
+swarm_cluster = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
 
 if (connection_method == "socket"):  
     print "Connecting through socket..." 
