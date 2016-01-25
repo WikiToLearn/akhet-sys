@@ -18,7 +18,7 @@ import threading
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
         return akhetconfig.get(section, option)
-    else
+    else:
         return default_argument
     
 def read_group_config(profile_list, section_prefix):
