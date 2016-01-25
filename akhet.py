@@ -305,6 +305,10 @@ def do_create(confbunch):
     
     hostcfg_data["network_mode"]="container:" + firewallname
     hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
+    
+    if(confbunch.enable_cuda):
+        hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev//dev/nvidia0']
+        
     hostcfg = c.create_host_config(**hostcfg_data)
     
     
@@ -316,9 +320,6 @@ def do_create(confbunch):
     container_data["image"] = confbunch.completeImg
     container_data["environment"] = confdict
     container_data["volumes"] = [user_home_dir]
-    
-    if(confbunch.enable_cuda):
-        container_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev//dev/nvidia0']
     
     container = c.create_container( **container_data)
     c.start(container=container.get('Id'))

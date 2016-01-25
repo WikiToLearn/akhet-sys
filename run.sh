@@ -4,7 +4,7 @@
 [[ "$AKHET_END_PORT" != "" ]] || export AKHET_END_PORT=2000
 [[ "$AKHET_HOSTNAME" != "" ]] || export AKHET_HOSTNAME="dockers.wikitolearn.org"
 
-[[ "$AKHET_HOSTS" != "" ]] || export AKHET_HOSTS="172.17.42.1"
+[[ "$AKHET_HOSTS" != "" ]] || export AKHET_HOSTS="172.17.0.1"
 
 [[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
 [[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
