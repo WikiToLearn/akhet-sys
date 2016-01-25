@@ -15,6 +15,10 @@ import string
 import thread
 import threading
 
+class Bunch(object):
+  def __init__(self, adict):
+    self.__dict__.update(adict)
+    
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
         return akhetconfig.get(section, option)
@@ -91,6 +95,7 @@ else:
 print "...connected!"
 
 app = Flask(__name__)
+instanceRegistry = {}
 
 def resp_json(data):
     replaydata = {"data":data, "version":"0.7"}
@@ -160,6 +165,12 @@ def do_0_1_gc():
         count = count + 1
     return resp_json({"deletedcount": count})
 
+@app.route('/0.1/query', methods=['POST'])
+def do_poll():
+    token = validate(request.values.get('token', False))
+    if (token):
+        return resp_json(instanceRegistry[token])
+        
 ###
 # Short API doc
 #
@@ -199,30 +210,41 @@ def do_0_1_create():
     uid = validate(request.values.get('uid', "1000")) # FIXME missing GIDs
     storage = validate(request.values.get('storage', False))
     enable_cuda = validate(request.values.get('enable_cuda', False))
-    
     user_env_vars = request.values.getlist('env')
+    
     notimeout = request.values.get('notimeout') == "yes"
     shared = request.values.get('shared') == "yes"
-    port = first_ok_port()
-    if port == None:
-        return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
-    
+
     if (len(usr) == 0):
         return resp_json({"errorno": 3, "error": "Invalid user"})
     if (len(img) == 0):
         return resp_json({"errorno":4, "error":"Image not valid"})
 
-    img = "akhet/%s" % img # only support official images
+    threadId = get_pass(32)
+    instanceRegistry[threadId] = {"status": 0}
+    
+    thread.start_new_thread(do_create, (Bunch(locals()),) )
+    return resp_json({"token": threadId})
+
+locker = threading.Lock()
+##### threaded stuff
+def do_create(confbunch):
+    
+    locker.acquire()
+    
+    port = first_ok_port()
+    if port == None:
+        return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
+    
+    completeImg = "akhet/%s" % confbunch.img # only support official images
 
     try:
-        c.inspect_image(img)
+        c.inspect_image(completeImg)
     except:
-        return resp_json({"errorno":1, "error":"Missing image %s" % img})
-
-##### threaded
+        return resp_json({"errorno":1, "error":"Missing image %s" % confbunch.img})
 
 
-    user_home_dir = '%s/%s' % (homedir_folder, usr)
+    user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
 
     confdict = {}
     confdict['blacklistdest'] = None
@@ -232,9 +254,9 @@ def do_0_1_create():
     confdict['defaultrule'] = None
 
     for k in confdict.keys():
-        if network in profiles["network"].keys():
-            if profiles["network"][network][k] != None:
-                confdict[k] = ' '.join(profiles["network"][network][k].split(","))
+        if confbunch.network in profiles["network"].keys():
+            if profiles["network"][confbunch.network][k] != None:
+                confdict[k] = ' '.join(profiles["network"][confbunch.network][k].split(","))
 
     # create firewall docker to limit network
     hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
@@ -257,14 +279,14 @@ def do_0_1_create():
 
     confdict = {}
     confdict['VNCPASS'] = get_pass(8)
-    confdict['USER'] = usr
-    confdict['UID'] = uid
-    if notimeout:
+    confdict['USER'] = confbunch.usr
+    confdict['UID'] = confbunch.uid
+    if confbunch.notimeout:
         confdict['NOTIMEOUT'] = '1'
-    if shared:
+    if confbunch.shared:
         confdict['SHARED'] = '1'
 
-    for var in user_env_vars:
+    for var in confbunch.user_env_vars:
         var_split = var.split('=')
         if len(var_split) == 2:
             var_name = var_split[0]
@@ -275,12 +297,12 @@ def do_0_1_create():
     hostcfg_data={}
     container_data = {}
 
-    if resource in profiles["resource"].keys():
+    if confbunch.resource in profiles["resource"].keys():
         if profiles["resource"][resource]['ram'] != None:
             hostcfg_data["mem_limit"] = profiles["resource"][resource]['ram']
     
     hostcfg_data["network_mode"]="container:" + firewallname
-    hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, usr)]
+    hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
     hostcfg = c.create_host_config(**hostcfg_data)
     
     
@@ -289,7 +311,7 @@ def do_0_1_create():
     container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
     container_data["detach"] = True
     container_data["tty"] = True
-    container_data["image"] = img
+    container_data["image"] = completeImg
     container_data["environment"] = confdict
     container_data["volumes"] = [user_home_dir]
     container = c.create_container( **container_data)
@@ -310,8 +332,14 @@ def do_0_1_create():
     data["host_port"] = external_port # return akhet unssl port
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
     data["host_name"] = public_hostname # return akhet hostn
+    data["status"] = 1
    
-    return resp_json(data)
+    instanceRegistry[confbunch.threadId] = data
+    locker.release()
+    
+    #print "Waiting for the death of", container.get('Id')
+    c.wait(container.get('Id'))
+    del instanceRegistry[confbunch.threadId]
 
 @app.route('/0.1/hostinfo')
 def do_0_1_hostinfo():
