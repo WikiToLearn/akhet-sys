@@ -17,7 +17,7 @@ import threading
 
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
-        return akhetconfig.get(option, option)
+        return akhetconfig.get(section, option)
     else
         return default_argument
     
@@ -168,9 +168,9 @@ def do_0_1_gc():
 #     the name of the docker image to start. must come from a trusted vendor
 #
 # Arguments to "create" (optional):
-# * network TODO
+# * network TODO FIXME
 #     the network profile to associate to the session instanciated (default: default)
-# * resource TODO
+# * resource TODO FIXME
 #     the physical resources profile to associate to the session instanciated (default: default)
 # * uid TODO
 #     numerical id to assign as UID to the user created (default: 1000)
@@ -178,13 +178,13 @@ def do_0_1_gc():
 #     list of numerical ids to assign to the user in these fashions
 #   # TODO: we have to accept either [1, 2, 3, ...]
 #   # TODO: or [{"name": "group1", "id": 1}, {"name": "group2", "id": 2} ...]
-# * storage TODO
+# * storage TODO FIXME (quasi)
 #     volatile or persistent (i.e. the home directory is mounted, default)
 # * mountables TODO
 #      list of mountables to mount in host
-# * env
+# * env FIXME
 #      list of environmental variables to set to the guest
-# * enable_cuda TODO
+# * enable_cuda TODO 
 #      if you want to enable cuda, pass anything to this parameter
 ###
 
