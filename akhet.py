@@ -215,10 +215,18 @@ def do_0_1_create():
     notimeout = request.values.get('notimeout') == "yes"
     shared = request.values.get('shared') == "yes"
 
+
+    completeImg = "akhet/%s" % img # only support official images
+    
+    try:
+        c.inspect_image(completeImg)
+    except:
+        return resp_json({"errorno": 1, "error": "Missing image %s" % img})
+
     if (len(usr) == 0):
         return resp_json({"errorno": 3, "error": "Invalid user"})
     if (len(img) == 0):
-        return resp_json({"errorno":4, "error":"Image not valid"})
+        return resp_json({"errorno": 4, "error":"Image not valid"})
 
     threadId = get_pass(32)
     instanceRegistry[threadId] = {"status": 0}
@@ -236,13 +244,6 @@ def do_create(confbunch):
     if port == None:
         return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
     
-    completeImg = "akhet/%s" % confbunch.img # only support official images
-
-    try:
-        c.inspect_image(completeImg)
-    except:
-        return resp_json({"errorno":1, "error":"Missing image %s" % confbunch.img})
-
 
     user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
 
@@ -273,7 +274,8 @@ def do_create(confbunch):
         container_fw_data["environment"] = confdict
         containerFirewall = c.create_container( **container_fw_data)
     except:
-        return resp_json({"errorno":5, "error":"Missing firewall image"})
+        print "ERROR: Missing firewall image"
+        #return resp_json({"errorno":5, "error":"Missing firewall image"})
     c.start(container=containerFirewall.get('Id'))
     firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
 
@@ -311,7 +313,7 @@ def do_create(confbunch):
     container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
     container_data["detach"] = True
     container_data["tty"] = True
-    container_data["image"] = completeImg
+    container_data["image"] = confbunch.completeImg
     container_data["environment"] = confdict
     container_data["volumes"] = [user_home_dir]
     
