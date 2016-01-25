@@ -321,10 +321,10 @@ def do_0_1_pullimage():
 
     for t in threading.enumerate():
         if t.getName() == "pull-" + img:
-            return resp_json({"statusno":2, "message":"Pulling running..."})
+            return resp_json({"statusno":2, "message":"Pull running..."})
 
     thread.start_new_thread(thread_pull_image, (img, c,))
-    return resp_json({"statusno":1, "message":"Pulling started..."})
+    return resp_json({"statusno":1, "message":"Pull started..."})
 
 @app.route('/0.1/pullimagesystem')
 def do_0_1_pullimagesystem():
