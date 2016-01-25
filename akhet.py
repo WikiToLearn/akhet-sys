@@ -307,7 +307,7 @@ def do_create(confbunch):
     hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
     
     if(confbunch.enable_cuda):
-        hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev//dev/nvidia0']
+        hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
         
     hostcfg = c.create_host_config(**hostcfg_data)
     
