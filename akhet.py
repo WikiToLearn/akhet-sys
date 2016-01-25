@@ -300,8 +300,8 @@ def do_create(confbunch):
     container_data = {}
 
     if confbunch.resource in profiles["resource"].keys():
-        if profiles["resource"][resource]['ram'] != None:
-            hostcfg_data["mem_limit"] = profiles["resource"][resource]['ram']
+        if profiles["resource"][confbunch.resource]['ram'] != None:
+            hostcfg_data["mem_limit"] = profiles["resource"][confbunch.resource]['ram']
     
     hostcfg_data["network_mode"]="container:" + firewallname
     hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
