@@ -51,11 +51,11 @@ profiles = {}
 profiles['network'] = []
 profiles['resource'] = []
             
-network_profiles = try_read_config("Akhet", "network_profiles"))
+network_profiles = try_read_config("Akhet", "network_profiles")
 if network_profiles:
     read_group_config(network_profiles.split(','), "network")
 
-resource_profiles = try_read_config("Akhet", "resource_profiles"))
+resource_profiles = try_read_config("Akhet", "resource_profiles")
 if resource_profiles:
     read_group_config(resource_profiles.split(','), "resource")
 
@@ -81,7 +81,7 @@ https_socket = os.environ.get('HTTPS_SOCKET')
 
 if (connection_method == "socket"):  
     print "Connecting through socket..." 
-    c = Client(base_url="unix:/{}".format(socket))
+    c = Client(base_url="unix:/{}".format(socket_file))
 else:
     print "Connecting through TCP..."
     # tls auth for swarm cluster
