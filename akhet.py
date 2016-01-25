@@ -48,8 +48,8 @@ profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blackl
 profile_options['resource'] = ['ram']
 
 profiles = {}
-profiles['network'] = []
-profiles['resource'] = []
+profiles['network'] = {}
+profiles['resource'] = {}
             
 network_profiles = try_read_config("Akhet", "network_profiles")
 if network_profiles:
@@ -87,6 +87,8 @@ else:
     # tls auth for swarm cluster
     tls_config = TLSConfig(client_cert=(ssl_cert_file, ssl_key_file), verify=ssl_ca, ca_cert=ssl_ca)
     c = Client(base_url='https://{}:{}'.format(remote_host, remote_port), tls=tls_config)
+
+print "...connected!"
 
 app = Flask(__name__)
 
@@ -269,6 +271,7 @@ def do_0_1_create():
                 confdict[var_name] = var_value
     hostcfg_data={}
     container_data = {}
+
     if resource in profiles["resource"].keys():
         if profiles["resource"][resource]['ram'] != None:
             hostcfg_data["mem_limit"] = profiles["resource"][resource]['ram']
