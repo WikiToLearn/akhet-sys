@@ -72,6 +72,7 @@ ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
 ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
 socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
+homedir_folder = try_read_config("Akhet", "homes_basepath", "/var/homedirs")
 
 public_hostname = try_read_config("Akhet", "public_hostname")
 
@@ -155,33 +156,57 @@ def do_0_1_gc():
         print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
         c.remove_container(d)
         count = count + 1
-    return resp_json({"deletedcount":count})
+    return resp_json({"deletedcount": count})
 
-# JSONIFY!
+###
+# Short API doc
+#
+# Arguments to "create" (mandatory)
+# * user
+#     a string uniquely identifying the user. Max 32 char
+# * image
+#     the name of the docker image to start. must come from a trusted vendor
+#
+# Arguments to "create" (optional):
+# * network TODO
+#     the network profile to associate to the session instanciated (default: default)
+# * resource TODO
+#     the physical resources profile to associate to the session instanciated (default: default)
+# * uid TODO
+#     numerical id to assign as UID to the user created (default: 1000)
+# * gid TODO
+#     list of numerical ids to assign to the user in these fashions
+#   # TODO: we have to accept either [1, 2, 3, ...]
+#   # TODO: or [{"name": "group1", "id": 1}, {"name": "group2", "id": 2} ...]
+# * storage TODO
+#     volatile or persistent (i.e. the home directory is mounted, default)
+# * mountables TODO
+#      list of mountables to mount in host
+# * env
+#      list of environmental variables to set to the guest
+# * enable_cuda TODO
+#      if you want to enable cuda, pass anything to this parameter
+###
+
 @app.route('/0.1/create', methods=['GET'])
 def do_0_1_create():
     usr = validate(request.args.get('user', False))
     img = validate(request.args.get('image', False))
-    network = validate(request.args.get('network', ""))
-    resource = validate(request.args.get('resource', ""))
-    uid = validate(request.args.get('uid', "")) # FIXME missing GIDs
-    
-    if (len(network) == 0):
-        network = "default"
-    if (len(resource) == 0):
-        resource = "default"
-    if (len(uid) == 0):
-        uid = "1000"
+    network = validate(request.args.get('network', "default"))
+    resource = validate(request.args.get('resource', "default"))
+    uid = validate(request.args.get('uid', "1000")) # FIXME missing GIDs
+    storage = validate(request.args.get('storage', False))
+    enable_cuda = validate(request.args.get('enable_cuda', False))
     
     user_env_vars = request.args.getlist('env')
     notimeout = request.args.get('notimeout') == "yes"
     shared = request.args.get('shared') == "yes"
     port = first_ok_port()
     if port == None:
-        return resp_json({"errorno":2, "error":"No machines available. Please try again later."}) # estimated time
+        return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
     
     if (len(usr) == 0):
-        return resp_json({"errorno":3, "error":"User not valid"})
+        return resp_json({"errorno": 3, "error": "Invalid user"})
     if (len(img) == 0):
         return resp_json({"errorno":4, "error":"Image not valid"})
 
