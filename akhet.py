@@ -74,7 +74,7 @@ socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
 homedir_folder = try_read_config("Akhet", "homes_basepath", "/var/homedirs")
 
-public_hostname = try_read_config("Akhet", "public_hostname")
+public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
 swarm_cluster = os.environ.get('USING_SWARM')
 https_socket = os.environ.get('HTTPS_SOCKET')
@@ -94,7 +94,7 @@ app = Flask(__name__)
 
 def resp_json(data):
     replaydata = {"data":data, "version":"0.7"}
-    callback = request.args.get('callback', False)
+    callback = request.values.get('callback', False)
     if callback:
         content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
         resp = current_app.response_class(content, mimetype='application/json')
@@ -190,19 +190,19 @@ def do_0_1_gc():
 #      if you want to enable cuda, pass anything to this parameter
 ###
 
-@app.route('/0.1/create', methods=['GET'])
+@app.route('/0.1/create', methods=['GET', 'POST'])
 def do_0_1_create():
-    usr = validate(request.args.get('user', False))
-    img = validate(request.args.get('image', False))
-    network = validate(request.args.get('network', "default"))
-    resource = validate(request.args.get('resource', "default"))
-    uid = validate(request.args.get('uid', "1000")) # FIXME missing GIDs
-    storage = validate(request.args.get('storage', False))
-    enable_cuda = validate(request.args.get('enable_cuda', False))
+    usr = validate(request.values.get('user', False))
+    img = validate(request.values.get('image', False))
+    network = validate(request.values.get('network', "default"))
+    resource = validate(request.values.get('resource', "default"))
+    uid = validate(request.values.get('uid', "1000")) # FIXME missing GIDs
+    storage = validate(request.values.get('storage', False))
+    enable_cuda = validate(request.values.get('enable_cuda', False))
     
-    user_env_vars = request.args.getlist('env')
-    notimeout = request.args.get('notimeout') == "yes"
-    shared = request.args.get('shared') == "yes"
+    user_env_vars = request.values.getlist('env')
+    notimeout = request.values.get('notimeout') == "yes"
+    shared = request.values.get('shared') == "yes"
     port = first_ok_port()
     if port == None:
         return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
@@ -218,6 +218,9 @@ def do_0_1_create():
         c.inspect_image(img)
     except:
         return resp_json({"errorno":1, "error":"Missing image %s" % img})
+
+##### threaded
+
 
     user_home_dir = '%s/%s' % (homedir_folder, usr)
 
@@ -246,11 +249,11 @@ def do_0_1_create():
         container_fw_data["hostname"] = "akhetinstance" + str(port)
         container_fw_data["ports"] = [6080]
         container_fw_data["environment"] = confdict
-        container = c.create_container( **container_fw_data)
+        containerFirewall = c.create_container( **container_fw_data)
     except:
         return resp_json({"errorno":5, "error":"Missing firewall image"})
-    c.start(container=container.get('Id'))
-    firewallname = c.inspect_container(container=container.get('Id'))["Name"][1:]
+    c.start(container=containerFirewall.get('Id'))
+    firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
 
     confdict = {}
     confdict['VNCPASS'] = get_pass(8)
@@ -295,10 +298,10 @@ def do_0_1_create():
     # get node address
     # FIXME: check if we're really in a docker swarm
     if swarm_cluster:
-        nodeaddr = c.inspect_container(container=container.get('Id'))["Node"]["Addr"].split(':')[0]
+        nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
     else:
-        nodeaddr = os.getenv('AKHET_SINGLE_NODE_BR_IP', "172.17.42.1")
-
+        nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+        
     data = {}
     data["instance_node"] = nodeaddr # return node where akhet instance is running
     data["instance_port"] = port # return node port where akhet instance is running
