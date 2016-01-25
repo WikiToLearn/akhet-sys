@@ -306,7 +306,7 @@ def do_0_1_create():
     data["instance_password"] = confdict['VNCPASS']  # return password for vnc instance
     data["host_port"] = external_port # return akhet unssl port
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
-    data["host_name"] = hostn # return akhet hostn
+    data["host_name"] = public_hostname # return akhet hostn
    
     return resp_json(data)
 
@@ -315,7 +315,7 @@ def do_0_1_hostinfo():
     data = {}
     data["host_port"] = external_port # return akhet unssl port
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
-    data["host_name"] = hostn # return akhet hostn
+    data["host_name"] = public_hostname # return akhet hostn
 
     return resp_json(data)
 
@@ -339,34 +339,6 @@ def do_0_1_imageslocal():
                     if not image_info[0] in data:
                         data[image_info[0]] = c.inspect_image(image_tag)
     return resp_json(data)
-
-@app.route('/0.1/pullimage')
-def do_0_1_pullimage():
-    img = validate(request.args.get('image', False))
-    
-    if (len(img) == 0):
-        return resp_json({"errorno":4, "error":"Image not valid"})
-
-    for t in threading.enumerate():
-        if t.getName() == "pull-" + img:
-            return resp_json({"statusno":2, "message":"Pull running..."})
-
-    thread.start_new_thread(thread_pull_image, (img, c,))
-    return resp_json({"statusno":1, "message":"Pull started..."})
-
-@app.route('/0.1/pullimagesystem')
-def do_0_1_pullimagesystem():
-    img = "akhetbase/akhet-firewall"
-    thread.start_new_thread(thread_pull_image, (img, c,))
-    return resp_json({"statusno":1, "message":"Pulling started..."})
-
-def thread_pull_image(img, c):
-    threading.currentThread().setName("pull-" + img)
-    print threading.currentThread().getName()
-    for line in c.pull("akhet/" + img, tag="latest", stream=True):
-        print line
-    threading.currentThread().setName("finished")
-    print "End pulling " + img
 
 if __name__ == '__main__':
     app.run(debug=True)
