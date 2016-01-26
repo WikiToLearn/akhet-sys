@@ -241,8 +241,8 @@ def do_create(confbunch):
     
     port = first_ok_port()
     if port == None:
-        return resp_json({"errorno": 2, "error": "No machines available. Please try again later."}) # estimated time
-    
+        instanceRegistry[confbunch.threadId] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
+        return "Port missing"
 
     user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
 
