@@ -354,6 +354,9 @@ def do_create(confbunch):
         nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
     else:
         nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+
+    open("/var/www/allowedports/"+str(port) , 'a').close()
+    open("/var/www/allowedhosts/"+nodeaddr  , 'a').close()
         
     data = {}
     data["instance_node"] = nodeaddr # return node where akhet instance is running

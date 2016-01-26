@@ -37,7 +37,7 @@ server {
   }
  }
  location ~ /socket/(?<dockerhost>.*)/(?<porta>.*) {
-  if (-f /var/www/socket_allowedports/$porta) {
+  if (-f /var/www/allowedports/$porta) {
    set $test  A; 
   }
   if (-f /var/www/allowedhosts/$dockerhost) {

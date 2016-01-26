@@ -1,11 +1,5 @@
 #!/bin/bash
 
-[[ "$AKHET_START_PORT" != "" ]] || export AKHET_START_PORT=1000
-[[ "$AKHET_END_PORT" != "" ]] || export AKHET_END_PORT=2000
-[[ "$AKHET_HOSTNAME" != "" ]] || export AKHET_HOSTNAME="dockers.wikitolearn.org"
-
-[[ "$AKHET_HOSTS" != "" ]] || export AKHET_HOSTS="172.17.0.1"
-
 [[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
 [[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
 
@@ -31,20 +25,11 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  rm server.csr
 fi
 
-rm -Rf /var/www/socket_allowedports/
+rm -Rf /var/www/allowedports/
 rm -Rf /var/www/allowedhosts/
 
-mkdir /var/www/socket_allowedports/
-P=$AKHET_START_PORT
-while [[ $P -le $AKHET_END_PORT ]] ; do
- touch /var/www/socket_allowedports/$P
- P=$(($P+1))
-done
-
+mkdir /var/www/allowedports/
 mkdir /var/www/allowedhosts/
-for allow_host in $AKHET_HOSTS ; do
- touch /var/www/allowedhosts/$allow_host
-done
 
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
