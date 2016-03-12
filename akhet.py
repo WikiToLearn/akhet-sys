@@ -306,32 +306,8 @@ def do_create(confbunch):
     hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
     
     if(confbunch.enable_cuda):
-        for b in ["/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/local/nvidia/lib64/libnvidia-ml.so.1",
-            "/usr/bin/nvidia-debugdump:/usr/local/bin/nvidia-debugdump",
-            "/usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/lib/x86_64-linux-gnu/libcuda.so.1",
-            "/usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/local/nvidia/lib64/libcuda.so.1",
-            "/usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so",
-            "/usr/lib/x86_64-linux-gnu/libnvcuvid.so.1:/usr/local/nvidia/lib64/libnvcuvid.so.1",
-            "/usr/lib/x86_64-linux-gnu/libnvcuvid.so:/usr/lib/x86_64-linux-gnu/libnvcuvid.so",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-compiler.so.352.39:/usr/lib/x86_64-linux-gnu/libnvidia-compiler.so.352.39",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-ml.so:/usr/local/nvidia/lib64/libnvidia-ml.so",
-            "/usr/bin/nvidia-cuda-mps-control:/usr/local/bin/nvidia-cuda-mps-control",
-            "/usr/bin/nvidia-persistenced:/usr/local/bin/nvidia-persistenced",
-            "/usr/bin/nvidia-smi:/usr/local/bin/nvidia-smi",
-            "/usr/lib/x86_64-linux-gnu/libnvcuvid.so:/usr/local/nvidia/lib64/libnvcuvid.so",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-compiler.so.352.39:/usr/local/nvidia/lib64/libnvidia-compiler.so.352.39",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so:/usr/local/nvidia/lib64/libnvidia-encode.so",
-            "/root/NVIDIA_CUDA-7.5_Samples/:/samples",
-            "/usr/lib/x86_64-linux-gnu/libcuda.so:/usr/local/nvidia/lib64/libcuda.so",
-            "/usr/lib/x86_64-linux-gnu/libnvcuvid.so.1:/usr/lib/x86_64-linux-gnu/libnvcuvid.so.1",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so.1:/usr/local/nvidia/lib64/libnvidia-encode.so.1",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-encode.so:/usr/lib/x86_64-linux-gnu/libnvidia-encode.so",
-            "/usr/lib/x86_64-linux-gnu/libnvidia-ml.so:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so",
-            "/usr/bin/nvidia-cuda-mps-server:/usr/local/bin/nvidia-cuda-mps-server"]:
-            hostcfg_data["binds"].append(b)
-        hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
+        if False:
+            hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
         
     hostcfg = c.create_host_config(**hostcfg_data)
     
