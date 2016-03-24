@@ -242,114 +242,114 @@ def do_create(confbunch):
     port = first_ok_port()
     if port == None:
         instanceRegistry[confbunch.threadId] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
-        return "Port missing"
-
-    user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
-
-    confdict = {}
-    confdict['blacklistdest'] = None
-    confdict['blacklistport'] = None
-    confdict['allowddest'] = None
-    confdict['allowdport'] = None
-    confdict['defaultrule'] = None
-
-    for k in confdict.keys():
-        if confbunch.network in profiles["network"].keys():
-            if profiles["network"][confbunch.network][k] != None:
-                confdict[k] = ' '.join(profiles["network"][confbunch.network][k].split(","))
-
-    # create firewall docker to limit network
-    hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
-    try:
-        container_fw_data = {}
-        container_fw_data["name"] = "akhetinstance-fw-" + str(port)
-        container_fw_data["host_config"] = hostcfg
-        container_fw_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
-        container_fw_data["detach"] = True
-        container_fw_data["tty"] = True
-        container_fw_data["image"] = "akhetbase/akhet-firewall"
-        container_fw_data["hostname"] = "akhetinstance" + str(port)
-        container_fw_data["ports"] = [6080]
-        container_fw_data["environment"] = confdict
-        containerFirewall = c.create_container( **container_fw_data)
-    except:
-        print "ERROR: Missing firewall image"
-        #return resp_json({"errorno":5, "error":"Missing firewall image"})
-    c.start(container=containerFirewall.get('Id'))
-    firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
-
-    confdict = {}
-    confdict['VNCPASS'] = get_pass(8)
-    confdict['USER'] = confbunch.usr
-    confdict['UID'] = confbunch.uid
-    if confbunch.notimeout:
-        confdict['NOTIMEOUT'] = '1'
-    if confbunch.shared:
-        confdict['SHARED'] = '1'
-
-    for var in confbunch.user_env_vars:
-        var_split = var.split('=')
-        if len(var_split) == 2:
-            var_name = var_split[0]
-            var_value = var_split[1]
-            print var_name, " => ", var_value
-            if not confdict.has_key(var_name):
-                confdict[var_name] = var_value
-    hostcfg_data={}
-    container_data = {}
-
-    if confbunch.resource in profiles["resource"].keys():
-        if profiles["resource"][confbunch.resource]['ram'] != None:
-            hostcfg_data["mem_limit"] = profiles["resource"][confbunch.resource]['ram']
-    
-    hostcfg_data["network_mode"]="container:" + firewallname
-    hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
-    
-    if(confbunch.enable_cuda):
-        if False:
-            hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
-        
-    hostcfg = c.create_host_config(**hostcfg_data)
-    
-    
-    container_data["name"] = "akhetinstance-" + str(port)
-    container_data["host_config"] = hostcfg
-    container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
-    container_data["detach"] = True
-    container_data["tty"] = True
-    container_data["image"] = confbunch.completeImg
-    container_data["environment"] = confdict
-    container_data["volumes"] = [user_home_dir]
-    
-    container = c.create_container( **container_data)
-    c.start(container=container.get('Id'))
-
-    # get node address
-    # FIXME: check if we're really in a docker swarm
-    if swarm_cluster:
-        nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
+        locker.release()
     else:
-        nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+        user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
 
-    open("/var/www/allowedports/"+str(port) , 'a').close()
-    open("/var/www/allowedhosts/"+nodeaddr  , 'a').close()
-        
-    data = {}
-    data["instance_node"] = nodeaddr # return node where akhet instance is running
-    data["instance_port"] = port # return node port where akhet instance is running
-    data["instance_path"] = "/socket/%s/%s" % (nodeaddr, port) #  return socket port if ahket as proxy
-    data["instance_password"] = confdict['VNCPASS']  # return password for vnc instance
-    data["host_port"] = external_port # return akhet unssl port
-    data["host_ssl_port"] = external_ssl_port # return akhet ssl port
-    data["host_name"] = public_hostname # return akhet hostn
-    data["status"] = 1
-   
-    instanceRegistry[confbunch.threadId] = data
-    locker.release()
+        confdict = {}
+        confdict['blacklistdest'] = None
+        confdict['blacklistport'] = None
+        confdict['allowddest'] = None
+        confdict['allowdport'] = None
+        confdict['defaultrule'] = None
+
+        for k in confdict.keys():
+            if confbunch.network in profiles["network"].keys():
+                if profiles["network"][confbunch.network][k] != None:
+                    confdict[k] = ' '.join(profiles["network"][confbunch.network][k].split(","))
+
+        # create firewall docker to limit network
+        hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
+        try:
+            container_fw_data = {}
+            container_fw_data["name"] = "akhetinstance-fw-" + str(port)
+            container_fw_data["host_config"] = hostcfg
+            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+            container_fw_data["detach"] = True
+            container_fw_data["tty"] = True
+            container_fw_data["image"] = "akhetbase/akhet-firewall"
+            container_fw_data["hostname"] = "akhetinstance" + str(port)
+            container_fw_data["ports"] = [6080]
+            container_fw_data["environment"] = confdict
+            containerFirewall = c.create_container( **container_fw_data)
+        except:
+            print "ERROR: Missing firewall image"
+            #return resp_json({"errorno":5, "error":"Missing firewall image"})
+        c.start(container=containerFirewall.get('Id'))
+        firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
+
+        confdict = {}
+        confdict['VNCPASS'] = get_pass(8)
+        confdict['USER'] = confbunch.usr
+        confdict['UID'] = confbunch.uid
+        if confbunch.notimeout:
+            confdict['NOTIMEOUT'] = '1'
+        if confbunch.shared:
+            confdict['SHARED'] = '1'
+
+        for var in confbunch.user_env_vars:
+            var_split = var.split('=')
+            if len(var_split) == 2:
+                var_name = var_split[0]
+                var_value = var_split[1]
+                print var_name, " => ", var_value
+                if not confdict.has_key(var_name):
+                    confdict[var_name] = var_value
+        hostcfg_data={}
+        container_data = {}
+
+        if confbunch.resource in profiles["resource"].keys():
+            if profiles["resource"][confbunch.resource]['ram'] != None:
+                hostcfg_data["mem_limit"] = profiles["resource"][confbunch.resource]['ram']
     
-    #print "Waiting for the death of", container.get('Id')
-    c.wait(container.get('Id'))
-    del instanceRegistry[confbunch.threadId]
+        hostcfg_data["network_mode"]="container:" + firewallname
+        hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
+    
+        if(confbunch.enable_cuda):
+            if False:
+                hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
+        
+        hostcfg = c.create_host_config(**hostcfg_data)
+    
+    
+        container_data["name"] = "akhetinstance-" + str(port)
+        container_data["host_config"] = hostcfg
+        container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+        container_data["detach"] = True
+        container_data["tty"] = True
+        container_data["image"] = confbunch.completeImg
+        container_data["environment"] = confdict
+        container_data["volumes"] = [user_home_dir]
+    
+        container = c.create_container( **container_data)
+        c.start(container=container.get('Id'))
+
+        # get node address
+        # FIXME: check if we're really in a docker swarm
+        if swarm_cluster:
+            nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
+        else:
+            nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+
+        open("/var/www/allowedports/"+str(port) , 'a').close()
+        open("/var/www/allowedhosts/"+nodeaddr  , 'a').close()
+        
+        data = {}
+        data["instance_node"] = nodeaddr # return node where akhet instance is running
+        data["instance_port"] = port # return node port where akhet instance is running
+        data["instance_path"] = "/socket/%s/%s" % (nodeaddr, port) #  return socket port if ahket as proxy
+        data["instance_password"] = confdict['VNCPASS']  # return password for vnc instance
+        data["host_port"] = external_port # return akhet unssl port
+        data["host_ssl_port"] = external_ssl_port # return akhet ssl port
+        data["host_name"] = public_hostname # return akhet hostn
+        data["status"] = 1
+   
+        instanceRegistry[confbunch.threadId] = data
+        locker.release()
+    
+        #print "Waiting for the death of", container.get('Id')
+        c.wait(container.get('Id'))
+        del instanceRegistry[confbunch.threadId]
 
 @app.route('/0.1/hostinfo')
 def do_0_1_hostinfo():
