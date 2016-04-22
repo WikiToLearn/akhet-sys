@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
-import ConfigParser
+import configparser
 import htpasswd
 from docker import Client
 from docker.client import Client
@@ -13,8 +13,9 @@ import os
 import random
 import re
 import string
-import thread
+import _thread
 import threading
+import sys
 
 class Bunch(object):
   def __init__(self, adict):
@@ -35,17 +36,17 @@ def read_group_config(profile_list, section_prefix):
                 for option in profile_options[section_prefix]:
                     profiles[section_prefix][profile][option] = try_read_config(profile_section, option)
             else:
-                print "Missing ", profile, " profile for ", section_prefix
+                print("Missing ", profile, " profile for ", section_prefix)
         except:
-            print "Error loading ", section_prefix, ":", profile, " profile"
-            
+            print("Error loading ", section_prefix, ":", profile, " profile")
+
     if 'default' not in profile_list:
-        print "Missing ", section_prefix, " default profile"
+        print("Missing ", section_prefix, " default profile")
         profiles[section_prefix]['default'] = {}
         for option in profile_options[section_prefix]:
             profiles[section_prefix]['default'][option] = None
         
-akhetconfig = ConfigParser.ConfigParser()
+akhetconfig = configparser.ConfigParser()
 akhetconfig.read("/akhet.ini")
 
 profile_options = {}
@@ -65,7 +66,7 @@ if resource_profiles:
     read_group_config(resource_profiles.split(','), "resource")
 
 start_port = int(try_read_config("Akhet", "start_port", 1000))
-end_port = int(try_read_config("Akhet", "end_port", 1050))
+end_port = int(try_read_config("Akhet", "end_port", 1005))
 external_port = int(try_read_config("Akhet", "external_port", 80))
 external_ssl_port = int(try_read_config("Akhet", "external_ssl_port", 443))
 
@@ -89,25 +90,32 @@ http_password = try_read_config("Akhet", "password", "akhetpass")
 with htpasswd.Basic("/var/www/htpasswd") as userdb:
     try:
         userdb.add(http_username,http_password)
-    except htpasswd.basic.UserExists, e:
-        print e
+    except htpasswd.basic.UserExists as e:
+        print(e)
 
 if (connection_method == "socket"):  
-    print "Connecting through socket..." 
+    print("Connecting through socket...")
     c = Client(base_url="unix:/{}".format(socket_file))
 else:
-    print "Connecting through TCP..."
+    print("Connecting through TCP...")
     # tls auth for swarm cluster
     tls_config = TLSConfig(client_cert=(ssl_cert_file, ssl_key_file), verify=ssl_ca, ca_cert=ssl_ca)
     c = Client(base_url='https://{}:{}'.format(remote_host, remote_port), tls=tls_config)
 
-print "...connected!"
+try:
+    c.info()
+except:
+    print("Error during the connection to docker")
+    sys.exit(1)
+
+print("...connected!")
+
 
 app = Flask(__name__)
 instanceRegistry = {}
 
 def resp_json(data):
-    replaydata = {"data":data, "version":"0.7"}
+    replaydata = {"data":data, "version":"0.8"}
     callback = request.values.get('callback', False)
     if callback:
         content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
@@ -138,7 +146,7 @@ def first_ok_port():
             if p not in ports_list:
                 ports_list.append(p)
         except:
-            print "Missing UsedPort"
+            print("Missing UsedPort")
         for port in ports:
             try:
                 if port['PublicPort'] not in ports_list:
@@ -147,8 +155,8 @@ def first_ok_port():
                 #    ports_list.append(port['PrivatePort'])
             except:
                 continue;
-    print "Used ports: ",
-    print ports_list
+    print("Used ports: ",)
+    print(ports_list)
     try_port = start_port
     while True:
         if try_port in ports_list:
@@ -164,22 +172,24 @@ def index():
     return resp_json("Akhet")
 
 @app.route('/gc')
-@app.route('/0.1/gc')
+@app.route('/0.8/gc')
 def do_0_1_gc():
     count = 0
     # Garbage collect
     for d in c.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
-        print "Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"])
+        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"]))
         c.remove_container(d)
         count = count + 1
     return resp_json({"deletedcount": count})
 
-@app.route('/0.1/query', methods=['POST'])
+@app.route('/0.8/instance', methods=['GET'])
 def do_poll():
-    token = validate(request.values.get('token', False))
+    token = validate(request.args.get('token', False))
     if (token):
         return resp_json(instanceRegistry[token])
-        
+    else:
+        return resp_json({"errorno": 5, "error": "Invalid token '{}'".format(token)})
+
 ###
 # Short API doc
 #
@@ -210,7 +220,7 @@ def do_poll():
 #      if you want to enable cuda, pass anything to this parameter
 ###
 
-@app.route('/0.1/create', methods=['GET', 'POST'])
+@app.route('/0.8/instance', methods=['POST'])
 def do_0_1_create():
     usr = validate(request.values.get('user', False))
     img = validate(request.values.get('image', False))
@@ -224,8 +234,10 @@ def do_0_1_create():
     notimeout = request.values.get('notimeout') == "yes"
     shared = request.values.get('shared') == "yes"
 
+    if not img[0:6] == "akhet/":
+       return resp_json({"errorno": 6, "error": "Image %s not allowed" % img})
 
-    completeImg = "akhet/%s" % img # only support official images
+    completeImg = "%s" % img # only support official images
     
     try:
         c.inspect_image(completeImg)
@@ -240,7 +252,7 @@ def do_0_1_create():
     threadId = get_pass(32)
     instanceRegistry[threadId] = {"status": 0}
     
-    thread.start_new_thread(do_create, (Bunch(locals()),) )
+    _thread.start_new_thread(do_create, (Bunch(locals()),) )
     return resp_json({"token": threadId})
 
 locker = threading.Lock()
@@ -283,7 +295,7 @@ def do_create(confbunch):
             container_fw_data["environment"] = confdict
             containerFirewall = c.create_container( **container_fw_data)
         except:
-            print "ERROR: Missing firewall image"
+            print("ERROR: Missing firewall image")
             #return resp_json({"errorno":5, "error":"Missing firewall image"})
         c.start(container=containerFirewall.get('Id'))
         firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
@@ -302,7 +314,7 @@ def do_create(confbunch):
             if len(var_split) == 2:
                 var_name = var_split[0]
                 var_value = var_split[1]
-                print var_name, " => ", var_value
+                print(var_name, " => ", var_value)
                 if not confdict.has_key(var_name):
                     confdict[var_name] = var_value
         hostcfg_data={}
@@ -361,7 +373,7 @@ def do_create(confbunch):
         c.wait(container.get('Id'))
         del instanceRegistry[confbunch.threadId]
 
-@app.route('/0.1/hostinfo')
+@app.route('/0.8/hostinfo')
 def do_0_1_hostinfo():
     data = {}
     data["host_port"] = external_port # return akhet unssl port
@@ -370,26 +382,26 @@ def do_0_1_hostinfo():
 
     return resp_json(data)
 
-@app.route('/0.1/imagesonline')
+@app.route('/0.8/imagesonline')
 def do_0_1_imagesonline():
     data = []
     for image in c.search('akhet'):
         if image['name'].startswith("akhet/"):
-            data.append(image['name'][6:])
-            #c.pull(image['name'], tag="latest")
+            data.append(image['name'])
     return resp_json(data)
 
-@app.route('/0.1/imageslocal')
+@app.route('/0.8/imageslocal')
 def do_0_1_imageslocal():
     data = {}
     for image in c.images():
         for image_tag in image['RepoTags']:
             if image_tag.startswith("akhet/"):
-                image_info = image_tag[6:].split(':')
+                image_info = image_tag.split(':')
                 if image_info[1] == "latest":
                     if not image_info[0] in data:
-                        data[image_info[0]] = c.inspect_image(image_tag)
+                        inspect = c.inspect_image(image_tag)
+                        data[image_info[0]] = {"Versions":inspect['RepoTags'],"Author":inspect['Author']}
     return resp_json(data)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

@@ -13,7 +13,7 @@ server {
  error_page 404 index.html;
 
  resolver 127.0.0.1;
- location ~* ^/(0\.1)/ {
+ location ~* ^/(0\.8)/ {
 
   auth_basic "Administrator Login";
   auth_basic_user_file /var/www/htpasswd;

@@ -32,4 +32,4 @@ mkdir /var/www/allowedhosts/
 
 cron
 
-exec python /akhet.py
+exec python3 /akhet.py
