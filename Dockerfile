@@ -4,6 +4,8 @@ MAINTAINER wikitolearn sysadmin@wikitolearn.org
 ENV DEBIAN_FRONTEND noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN true
 
+ADD ./sources.list /etc/apt/sources.list
+
 RUN apt-get update && apt-get -y install zip unzip nano apt-utils curl rsync git && rm -f /var/cache/apt/archives/*deb && find /var/lib/apt/lists/ -type f -delete
 
 RUN apt-get update && apt-get -y install python && rm -f /var/cache/apt/archives/*deb && find /var/lib/apt/lists/ -type f -delete
@@ -15,6 +17,7 @@ RUN apt-get update && apt-get -y install cron && rm -f /var/cache/apt/archives/*
 RUN apt-get update && apt-get -y install wget && rm -f /var/cache/apt/archives/*deb && find /var/lib/apt/lists/ -type f -delete
 RUN pip install docker-py
 RUN pip install flask
+RUN pip install htpasswd
 
 RUN rm /var/www/html/* -Rfv
 

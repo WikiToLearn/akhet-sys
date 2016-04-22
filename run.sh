@@ -1,10 +1,6 @@
 #!/bin/bash
 
-[[ "$AKHET_USER" != "" ]] || export AKHET_USER="admin"
-[[ "$AKHET_PASS" != "" ]] || export AKHET_PASS="admin"
-
-
-echo $AKHET_USER:$(perl -le 'print crypt("'$AKHET_PASS'", "Salt-hash")') > /var/www/htpasswd
+touch /var/www/htpasswd
 
 if [ -f /certs/akhet.crt ] ; then
  echo "Copy /certs/akhet.crt"
@@ -36,4 +32,4 @@ mkdir /var/www/allowedhosts/
 
 cron
 
-python /akhet.py
+exec python /akhet.py

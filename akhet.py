@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
 import ConfigParser
+import htpasswd
 from docker import Client
 from docker.client import Client
 from docker.tls import TLSConfig
@@ -81,6 +82,15 @@ homedir_folder = try_read_config("Akhet", "homes_basepath", "/var/homedirs")
 public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
 swarm_cluster = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
+
+http_username = try_read_config("Akhet", "username", "akhetuser")
+http_password = try_read_config("Akhet", "password", "akhetpass")
+
+with htpasswd.Basic("/var/www/htpasswd") as userdb:
+    try:
+        userdb.add(http_username,http_password)
+    except htpasswd.basic.UserExists, e:
+        print e
 
 if (connection_method == "socket"):  
     print "Connecting through socket..." 
