@@ -18,8 +18,8 @@ import threading
 import sys
 
 class Bunch(object):
-  def __init__(self, adict):
-    self.__dict__.update(adict)
+    def __init__(self, adict):
+        self.__dict__.update(adict)
     
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
@@ -52,11 +52,13 @@ akhetconfig.read("/akhet.ini")
 profile_options = {}
 profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blacklistdest', 'blacklistport']
 profile_options['resource'] = ['ram']
+profile_options['mountable'] = ['hostpath','guestpath']
 
 profiles = {}
 profiles['network'] = {}
 profiles['resource'] = {}
-            
+profiles['mountable'] = {}
+
 network_profiles = try_read_config("Akhet", "network_profiles")
 if network_profiles:
     read_group_config(network_profiles.split(','), "network")
@@ -65,8 +67,16 @@ resource_profiles = try_read_config("Akhet", "resource_profiles")
 if resource_profiles:
     read_group_config(resource_profiles.split(','), "resource")
 
-start_port = int(try_read_config("Akhet", "start_port", 1000))
-end_port = int(try_read_config("Akhet", "end_port", 1005))
+mountables = try_read_config("Akhet", "mountables")
+if mountables:
+    read_group_config(mountables.split(','), "mountable")
+
+wsvnc_port_start = int(try_read_config("Akhet", "wsvnc_port_start", 1000))
+wsvnc_port_end = int(try_read_config("Akhet", "wsvnc_port_end", 1005))
+
+ws_port_start = int(try_read_config("Akhet", "ws_port_start", 2000))
+ws_port_end = int(try_read_config("Akhet", "ws_port_end", 2005))
+
 external_port = int(try_read_config("Akhet", "external_port", 80))
 external_ssl_port = int(try_read_config("Akhet", "external_ssl_port", 443))
 
@@ -86,6 +96,12 @@ swarm_cluster = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
 
 http_username = try_read_config("Akhet", "username", "akhetuser")
 http_password = try_read_config("Akhet", "password", "akhetpass")
+
+cuda =  try_read_config("Akhet", "cuda", "on") == "on"
+cuda_devices_raw = try_read_config("Akhet", "cuda_devices", "")
+cuda_devices = []
+if len(cuda_devices_raw)>0:
+    cuda_devices = cuda_devices_raw.split(',')
 
 with htpasswd.Basic("/var/www/htpasswd") as userdb:
     try:
@@ -109,7 +125,7 @@ except:
     sys.exit(1)
 
 print("...connected!")
-
+# load finished
 
 app = Flask(__name__)
 instanceRegistry = {}
@@ -135,37 +151,36 @@ def validate(test_str):
     except:
         return ""
 
-def first_ok_port():
-    l = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
+def wsvnc_port_first_free():
+    list_containers = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
     ports_list = []
-    for i in l:
-        #if (len(i['Ports'])):
-        ports = i['Ports']
+    for container in list_containers:
         try:
-            p = int(i["Labels"]["UsedPort"])
-            if p not in ports_list:
-                ports_list.append(p)
+            my_port = int(container["Labels"]["UsedPort"]) # this is to avoid name collision
+            if my_port not in ports_list:
+                ports_list.append(my_port)
         except:
-            print("Missing UsedPort")
-        for port in ports:
-            try:
-                if port['PublicPort'] not in ports_list:
-                    ports_list.append(port['PublicPort'])
-                #if port['PrivatePort'] not in ports_list: 
-                #    ports_list.append(port['PrivatePort'])
-            except:
-                continue;
-    print("Used ports: ",)
-    print(ports_list)
-    try_port = start_port
-    while True:
+            pass
+        if 'Ports' in container:
+            ports = container['Ports']
+            for port in ports:
+                try:
+                    if port['PublicPort'] not in ports_list:
+                        ports_list.append(port['PublicPort'])
+                except:
+                    continue;
+    try_port = wsvnc_port_start
+    port_found = False
+    while try_port <= (wsvnc_port_end+1) and not port_found:
         if try_port in ports_list:
             try_port += 1
         else:
-            return try_port
+            port_found = True
         
-        if try_port > end_port:
-            return None
+    if try_port <= wsvnc_port_end:
+        return try_port
+    else:
+        return None
             
 @app.route('/')
 def index():
@@ -184,11 +199,20 @@ def do_0_1_gc():
 
 @app.route('/0.8/instance', methods=['GET'])
 def do_poll():
-    token = validate(request.args.get('token', False))
+    if request.headers['Content-Type'] != 'application/json':
+        return({"errorno": 7, "error": "You have to send application/json"})
+
+    if 'token' not in request.json:
+        return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
+
+    token = validate(request.json['token'])
     if (token):
-        return resp_json(instanceRegistry[token])
+        if token in instanceRegistry:
+            return resp_json(instanceRegistry[token])
+        else:
+            return resp_json({"errorno": 10, "error": "Token not found '{}'".format(token)})
     else:
-        return resp_json({"errorno": 5, "error": "Invalid token '{}'".format(token)})
+        return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
 
 ###
 # Short API doc
@@ -222,17 +246,71 @@ def do_poll():
 
 @app.route('/0.8/instance', methods=['POST'])
 def do_0_1_create():
-    usr = validate(request.values.get('user', False))
-    img = validate(request.values.get('image', False))
-    network = validate(request.values.get('network', "default"))
-    resource = validate(request.values.get('resource', "default"))
-    uid = validate(request.values.get('uid', "1000")) # FIXME missing GIDs
-    storage = validate(request.values.get('storage', False))
-    enable_cuda = validate(request.values.get('enable_cuda', False))
-    user_env_vars = request.values.getlist('env')
-    
-    notimeout = request.values.get('notimeout') == "yes"
-    shared = request.values.get('shared') == "yes"
+    if request.headers['Content-Type'] != 'application/json':
+        return({"errorno": 7, "error": "You have to send application/json"})
+
+    if 'user' not in request.json:
+        return resp_json({"errorno": 8, "error": "Missing user"})
+    usr = validate(request.json['user'])
+
+    if 'image' not in request.json:
+        return resp_json({"errorno": 9, "error": "Missing image"})
+    img = validate(request.json['image'])
+
+    if 'network' in request.json:
+        network = validate(request.json['network'])
+    else:
+        network = "default"
+
+    if 'resource' in request.json:
+        resource = validate(request.json['resource'])
+    else:
+        resource = "default"
+
+    if 'uid' in request.json:
+        uid = request.json['uid']
+    else:
+        uid = "1000"
+
+    if 'gids' in request.json:
+        gids = request.json['gids']
+    else:
+        gids = ["1000"]
+
+    if 'storage' in request.json:
+        storage = validate(request.json['storage'])
+    else:
+        storage = "persistent"
+
+    if 'mountables' in request.json:
+        mountables = request.json['mountables']
+    else:
+        mountables = []
+
+    if 'enable_cuda' in request.json:
+        enable_cuda = validate(request.json['enable_cuda'])
+    else:
+        enable_cuda = False
+
+    if 'env' in request.json:
+        user_env_vars = request.json['env']
+    else:
+        user_env_vars = {}
+
+    if 'notimeout' in request.json:
+        notimeout = validate(request.json['notimeout'])
+    else:
+        notimeout = False
+
+    if 'shared' in request.json:
+        shared = validate(request.json['shared'])
+    else:
+        shared = False
+
+    if 'additional_ws' in request.json:
+        additional_ws = request.json['additional_ws']
+    else:
+        additional_ws = []
 
     if not img[0:6] == "akhet/":
        return resp_json({"errorno": 6, "error": "Image %s not allowed" % img})
@@ -255,18 +333,30 @@ def do_0_1_create():
     _thread.start_new_thread(do_create, (Bunch(locals()),) )
     return resp_json({"token": threadId})
 
-locker = threading.Lock()
+locker_port = threading.Lock()
+locker_data = threading.Lock()
+
 ##### threaded stuff
 def do_create(confbunch):
-    
-    locker.acquire()
-    
-    port = first_ok_port()
+    locker_port.acquire()
+    port = wsvnc_port_first_free()
+    locker_port.release()
+
     if port == None:
         instanceRegistry[confbunch.threadId] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
-        locker.release()
     else:
         user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
+        volumes = []
+        volumes_bind = []
+        if confbunch.storage == "persistent":
+            volumes.append(user_home_dir)
+            volumes_bind.append('%s:/home/user' % user_home_dir)
+
+        for mountable in confbunch.mountables:
+            hostpath  = profiles["mountable"][mountable]['hostpath']
+            guestpath = profiles["mountable"][mountable]['guestpath']
+            volumes.append(hostpath)
+            volumes_bind.append('%s:%s' % (hostpath, guestpath))
 
         confdict = {}
         confdict['blacklistdest'] = None
@@ -296,27 +386,26 @@ def do_create(confbunch):
             containerFirewall = c.create_container( **container_fw_data)
         except:
             print("ERROR: Missing firewall image")
-            #return resp_json({"errorno":5, "error":"Missing firewall image"})
+            instanceRegistry[confbunch.threadId] = {"errorno":5, "error":"Missing firewall image"}
         c.start(container=containerFirewall.get('Id'))
         firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
 
         confdict = {}
-        confdict['VNCPASS'] = get_pass(8)
-        confdict['USER'] = confbunch.usr
-        confdict['UID'] = confbunch.uid
+        confdict['AKHETBASE_VNCPASS'] = get_pass(8)
+        confdict['AKHETBASE_USER'] = confbunch.usr
+        confdict['AKHETBASE_USER_LABEL'] = "Akhet User"
+        confdict['AKHETBASE_UID'] = confbunch.uid
+        confdict['AKHETBASE_GIDs'] = " ".join(str(x) for x in confbunch.gids)
         if confbunch.notimeout:
-            confdict['NOTIMEOUT'] = '1'
+            confdict['AKHETBASE_NOTIMEOUT'] = '1'
         if confbunch.shared:
-            confdict['SHARED'] = '1'
+            confdict['AKHETBASE_SHARED'] = '1'
 
         for var in confbunch.user_env_vars:
-            var_split = var.split('=')
-            if len(var_split) == 2:
-                var_name = var_split[0]
-                var_value = var_split[1]
-                print(var_name, " => ", var_value)
-                if not confdict.has_key(var_name):
-                    confdict[var_name] = var_value
+            var_name = "AKHET_{}".format(var)
+            var_value = confbunch.user_env_vars[var]
+            if var_name not in confdict:
+                confdict[var_name] = var_value
         hostcfg_data={}
         container_data = {}
 
@@ -325,11 +414,16 @@ def do_create(confbunch):
                 hostcfg_data["mem_limit"] = profiles["resource"][confbunch.resource]['ram']
     
         hostcfg_data["network_mode"]="container:" + firewallname
-        hostcfg_data["binds"]=['%s/%s:/home/user' % (homedir_folder, confbunch.usr)]
+        hostcfg_data["binds"] = volumes_bind
     
-        if(confbunch.enable_cuda):
-            if False:
-                hostcfg_data["devices"]=['/dev/nvidiactl', '/dev/nvidia-uvm', '/dev/nvidia0']
+        if(cuda):
+            if(confbunch.enable_cuda):
+                cuda_devs=[]
+                cuda_devs.append("/dev/nvidiactl")
+                cuda_devs.append("/dev/nvidia-uvm")
+                for d in cuda_devices:
+                    cuda_devs.append(d)
+                hostcfg_data["devices"] = cuda_devs
         
         hostcfg = c.create_host_config(**hostcfg_data)
     
@@ -341,7 +435,7 @@ def do_create(confbunch):
         container_data["tty"] = True
         container_data["image"] = confbunch.completeImg
         container_data["environment"] = confdict
-        container_data["volumes"] = [user_home_dir]
+        container_data["volumes"] = volumes
     
         container = c.create_container( **container_data)
         c.start(container=container.get('Id'))
@@ -353,23 +447,24 @@ def do_create(confbunch):
         else:
             nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
-        open("/var/www/allowedports/"+str(port) , 'a').close()
-        open("/var/www/allowedhosts/"+nodeaddr  , 'a').close()
+        open("/var/www/wsvnc/allowedports/"+str(port) , 'a').close()
+        open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
         
         data = {}
         data["instance_node"] = nodeaddr # return node where akhet instance is running
         data["instance_port"] = port # return node port where akhet instance is running
-        data["instance_path"] = "/socket/%s/%s" % (nodeaddr, port) #  return socket port if ahket as proxy
-        data["instance_password"] = confdict['VNCPASS']  # return password for vnc instance
+        data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, port) #  return wsvnc port if ahket as proxy
+        data["instance_password"] = confdict['AKHETBASE_VNCPASS']  # return password for vnc instance
         data["host_port"] = external_port # return akhet unssl port
         data["host_ssl_port"] = external_ssl_port # return akhet ssl port
         data["host_name"] = public_hostname # return akhet hostn
         data["status"] = 1
    
+        locker_data.acquire()
         instanceRegistry[confbunch.threadId] = data
-        locker.release()
+        locker_data.release()
     
-        #print "Waiting for the death of", container.get('Id')
+        print("Waiting for the death of", container.get('Id'))
         c.wait(container.get('Id'))
         del instanceRegistry[confbunch.threadId]
 

@@ -21,11 +21,15 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  rm server.csr
 fi
 
-rm -Rf /var/www/allowedports/
-rm -Rf /var/www/allowedhosts/
+rm -Rf /var/www/wsvnc/
+mkdir /var/www/wsvnc/
+mkdir /var/www/wsvnc/allowedports/
+mkdir /var/www/wsvnc/allowedhosts/
 
-mkdir /var/www/allowedports/
-mkdir /var/www/allowedhosts/
+rm -Rf /var/www/ws/
+mkdir /var/www/ws/
+mkdir /var/www/ws/allowedports/
+mkdir /var/www/ws/allowedhosts/
 
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
