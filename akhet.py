@@ -45,16 +45,17 @@ def read_group_config(profile_list, section_prefix):
         profiles[section_prefix]['default'] = {}
         for option in profile_options[section_prefix]:
             profiles[section_prefix]['default'][option] = None
+
+profiles = {}
+profile_options = {}
         
 akhetconfig = configparser.ConfigParser()
 akhetconfig.read("/akhet.ini")
 
-profile_options = {}
 profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blacklistdest', 'blacklistport']
 profile_options['resource'] = ['ram']
 profile_options['mountable'] = ['hostpath','guestpath']
 
-profiles = {}
 profiles['network'] = {}
 profiles['resource'] = {}
 profiles['mountable'] = {}
@@ -151,14 +152,22 @@ def validate(test_str):
     except:
         return ""
 
-def wsvnc_port_first_free():
+def port_used():
     list_containers = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
     ports_list = []
     for container in list_containers:
         try:
-            my_port = int(container["Labels"]["UsedPort"]) # this is to avoid name collision
+            my_port = int(container["Labels"]["UsedVNCPort"]) # this is to avoid name collision
             if my_port not in ports_list:
                 ports_list.append(my_port)
+        except:
+            pass
+        try:
+            my_ports = container["Labels"]["UsedPorts"].split(',')
+            for my_port_str in my_ports:
+                my_port_int = int(my_port_str)
+                if my_port_int not in ports_list:
+                    ports_list.append(my_port_int)
         except:
             pass
         if 'Ports' in container:
@@ -169,6 +178,10 @@ def wsvnc_port_first_free():
                         ports_list.append(port['PublicPort'])
                 except:
                     continue;
+    return ports_list
+
+def wsvnc_port_first_free():
+    ports_list = port_used()
     try_port = wsvnc_port_start
     port_found = False
     while try_port <= (wsvnc_port_end+1) and not port_found:
@@ -178,6 +191,21 @@ def wsvnc_port_first_free():
             port_found = True
         
     if try_port <= wsvnc_port_end:
+        return try_port
+    else:
+        return None
+
+def ws_port_first_free():
+    ports_list = port_used()
+    try_port = ws_port_start
+    port_found = False
+    while try_port <= (ws_port_end+1) and not port_found:
+        if try_port in ports_list:
+            try_port += 1
+        else:
+            port_found = True
+
+    if try_port <= ws_port_end:
         return try_port
     else:
         return None
@@ -192,7 +220,7 @@ def do_0_1_gc():
     count = 0
     # Garbage collect
     for d in c.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
-        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedPort"]))
+        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedVNCPort"]))
         c.remove_container(d)
         count = count + 1
     return resp_json({"deletedcount": count})
@@ -333,17 +361,27 @@ def do_0_1_create():
     _thread.start_new_thread(do_create, (Bunch(locals()),) )
     return resp_json({"token": threadId})
 
-locker_port = threading.Lock()
-locker_data = threading.Lock()
+locker = threading.Lock()
 
 ##### threaded stuff
 def do_create(confbunch):
-    locker_port.acquire()
+    additional_ws_binding = {}
+
+    locker.acquire()
     port = wsvnc_port_first_free()
-    locker_port.release()
+
+    missing_additional_ws_port = False
+    for additional_ws_port in confbunch.additional_ws:
+        additional_ws_binding[additional_ws_port] = ws_port_first_free()
+        if additional_ws_binding[additional_ws_port] == None:
+            missing_additional_ws_port = True
 
     if port == None:
         instanceRegistry[confbunch.threadId] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
+        locker.release()
+    elif missing_additional_ws_port:
+        instanceRegistry[confbunch.threadId] = {"errorno": 12, "error": "No ports available. Please try again later."} # estimated time
+        locker.release()
     else:
         user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
         volumes = []
@@ -371,17 +409,23 @@ def do_create(confbunch):
                     confdict[k] = ' '.join(profiles["network"][confbunch.network][k].split(","))
 
         # create firewall docker to limit network
-        hostcfg = c.create_host_config(port_bindings={6080:port}, privileged=True)
         try:
+            fw_port_bindings = {6080:port}
+            fw_ports = [6080]
+            for binding in additional_ws_binding:
+                fw_port_bindings[binding] = additional_ws_binding[binding]
+                fw_ports.append(binding)
+            hostcfg = c.create_host_config(port_bindings=fw_port_bindings, privileged=True)
+
             container_fw_data = {}
             container_fw_data["name"] = "akhetinstance-fw-" + str(port)
             container_fw_data["host_config"] = hostcfg
-            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(additional_ws_binding[x]) for x in additional_ws_binding)}
             container_fw_data["detach"] = True
             container_fw_data["tty"] = True
             container_fw_data["image"] = "akhetbase/akhet-firewall"
             container_fw_data["hostname"] = "akhetinstance" + str(port)
-            container_fw_data["ports"] = [6080]
+            container_fw_data["ports"] = fw_ports
             container_fw_data["environment"] = confdict
             containerFirewall = c.create_container( **container_fw_data)
         except:
@@ -430,7 +474,7 @@ def do_create(confbunch):
     
         container_data["name"] = "akhetinstance-" + str(port)
         container_data["host_config"] = hostcfg
-        container_data["labels"] = {"akhetinstance":"yes", "UsedPort":str(port)}
+        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(additional_ws_binding[x]) for x in additional_ws_binding)}
         container_data["detach"] = True
         container_data["tty"] = True
         container_data["image"] = confbunch.completeImg
@@ -449,20 +493,29 @@ def do_create(confbunch):
 
         open("/var/www/wsvnc/allowedports/"+str(port) , 'a').close()
         open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
-        
+
+
+        for binding in additional_ws_binding:
+            open("/var/www/ws/allowedports/"+str(additional_ws_binding[binding]) , 'a').close()
+            open("/var/www/ws/allowedhosts/"+nodeaddr  , 'a').close()
+
+        additional_ws_binding_paths = {}
+        for binding in additional_ws_binding:
+            additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
+
         data = {}
         data["instance_node"] = nodeaddr # return node where akhet instance is running
         data["instance_port"] = port # return node port where akhet instance is running
         data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, port) #  return wsvnc port if ahket as proxy
+        data["instance_ws_paths"] = additional_ws_binding_paths
         data["instance_password"] = confdict['AKHETBASE_VNCPASS']  # return password for vnc instance
         data["host_port"] = external_port # return akhet unssl port
         data["host_ssl_port"] = external_ssl_port # return akhet ssl port
         data["host_name"] = public_hostname # return akhet hostn
         data["status"] = 1
    
-        locker_data.acquire()
         instanceRegistry[confbunch.threadId] = data
-        locker_data.release()
+        locker.release()
     
         print("Waiting for the death of", container.get('Id'))
         c.wait(container.get('Id'))
