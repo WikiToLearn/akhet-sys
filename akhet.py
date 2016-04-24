@@ -152,9 +152,10 @@ def validate(test_str):
     except:
         return ""
 
-def port_used():
+def port_used(ports_list = []):
+    print("Used ports: ",)
+    print(ports_list)
     list_containers = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
-    ports_list = []
     for container in list_containers:
         try:
             my_port = int(container["Labels"]["UsedVNCPort"]) # this is to avoid name collision
@@ -180,8 +181,8 @@ def port_used():
                     continue;
     return ports_list
 
-def wsvnc_port_first_free():
-    ports_list = port_used()
+def wsvnc_port_first_free(used_ports_list=[]):
+    ports_list = port_used(used_ports_list)
     try_port = wsvnc_port_start
     port_found = False
     while try_port <= (wsvnc_port_end+1) and not port_found:
@@ -191,12 +192,13 @@ def wsvnc_port_first_free():
             port_found = True
         
     if try_port <= wsvnc_port_end:
+        print("Port selected {}".format(try_port))
         return try_port
     else:
         return None
 
-def ws_port_first_free():
-    ports_list = port_used()
+def ws_port_first_free(used_ports_list=[]):
+    ports_list = port_used(used_ports_list)
     try_port = ws_port_start
     port_found = False
     while try_port <= (ws_port_end+1) and not port_found:
@@ -206,6 +208,7 @@ def ws_port_first_free():
             port_found = True
 
     if try_port <= ws_port_end:
+        print("Port selected {}".format(try_port))
         return try_port
     else:
         return None
@@ -372,7 +375,7 @@ def do_create(confbunch):
 
     missing_additional_ws_port = False
     for additional_ws_port in confbunch.additional_ws:
-        additional_ws_binding[additional_ws_port] = ws_port_first_free()
+        additional_ws_binding[additional_ws_port] = ws_port_first_free([additional_ws_binding[x] for x in additional_ws_binding])
         if additional_ws_binding[additional_ws_port] == None:
             missing_additional_ws_port = True
 
