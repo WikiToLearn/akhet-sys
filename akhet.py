@@ -16,6 +16,7 @@ import string
 import _thread
 import threading
 import sys
+from time import sleep
 
 class Bunch(object):
     def __init__(self, adict):
@@ -486,6 +487,15 @@ def do_create(confbunch):
     
         container = c.create_container( **container_data)
         c.start(container=container.get('Id'))
+
+        print("Wait for VNC server")
+        wait_for_vnc_server = True
+        while wait_for_vnc_server:
+            wait_vnc_server_exec = c.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
+            wait_vnc_server_exec_output = c.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
+            wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=') 
+            wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
+            sleep(0.01)
 
         # get node address
         # FIXME: check if we're really in a docker swarm

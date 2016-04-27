@@ -13,6 +13,7 @@ fi
 
 
 if [ ! -f /etc/ssl/private/nginx.key ] ; then
+ cd /tmp/
  openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
  openssl rsa -passin pass:x -in server.pass.key -out /etc/ssl/private/nginx.key
  rm server.pass.key
