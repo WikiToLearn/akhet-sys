@@ -422,26 +422,28 @@ def do_create(token):
     confbunch = Bunch(instanceRegistry[token])
     additional_ws_binding = {}
     additional_http_binding = {}
+    global_additional_used_ports=[]
     additional_used_ports=[]
 
     locker.acquire()
-    port = wsvnc_port_first_free(additional_used_ports)
+    port = wsvnc_port_first_free(global_additional_used_ports)
 
     missing_additional_ws_port = False
     for additional_ws_port in confbunch.request_additional_ws:
-        additional_ws_binding[additional_ws_port] = ws_port_first_free(additional_used_ports)
+        additional_ws_binding[additional_ws_port] = ws_port_first_free(global_additional_used_ports)
         if additional_ws_binding[additional_ws_port] == None:
             missing_additional_ws_port = True
         else:
-            additional_used_ports.append(additional_ws_binding[additional_ws_port])
+            global_additional_used_ports.append(additional_ws_binding[additional_ws_port])
 
     missing_additional_http_port = False
     for additional_http_port in confbunch.request_additional_http:
-        additional_http_binding[additional_http_port] = http_port_first_free(additional_used_ports)
+        additional_http_binding[additional_http_port] = http_port_first_free(global_additional_used_ports)
         if additional_http_binding[additional_http_port] == None:
             missing_additional_http_port = True
         else:
-            additional_used_ports.append(additional_http_binding[additional_http_port])
+            global_additional_used_ports.append(additional_http_binding[additional_http_port])
+
 
     if port == None:
         instanceRegistry[token] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
@@ -453,6 +455,11 @@ def do_create(token):
         instanceRegistry[token] = {"errorno": 13, "error": "No ports available for additional http. Please try again later."} # estimated time
         locker.release()
     else:
+        for port in additional_ws_binding:
+            additional_used_ports.append(port)
+        for port in additional_http_binding:
+            additional_used_ports.append(port)
+
         # create the volumes mountpoints
         volumes = []
         volumes_bind = []
