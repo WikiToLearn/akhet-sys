@@ -426,7 +426,7 @@ def do_create(token):
     additional_used_ports=[]
 
     locker.acquire()
-    port = wsvnc_port_first_free(global_additional_used_ports)
+    wsvnc_port = wsvnc_port_first_free(global_additional_used_ports)
 
     missing_additional_ws_port = False
     for additional_ws_port in confbunch.request_additional_ws:
@@ -445,7 +445,7 @@ def do_create(token):
             global_additional_used_ports.append(additional_http_binding[additional_http_port])
 
 
-    if port == None:
+    if wsvnc_port == None:
         instanceRegistry[token] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
         locker.release()
     elif missing_additional_ws_port:
@@ -488,7 +488,7 @@ def do_create(token):
         # create firewall docker to limit network
         try:
 
-            fw_port_bindings = {6080:port}
+            fw_port_bindings = {6080:wsvnc_port}
             fw_ports = [6080]
             for binding in additional_ws_binding:
                 fw_port_bindings[binding] = additional_ws_binding[binding]
@@ -503,13 +503,13 @@ def do_create(token):
             hostcfg_fw = c.create_host_config(**hostcfg_fw_data)
 
             container_fw_data = {}
-            container_fw_data["name"] = "akhetinstance-fw-" + str(port)
+            container_fw_data["name"] = "akhetinstance-fw-" + str(wsvnc_port)
             container_fw_data["host_config"] = hostcfg_fw
-            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
+            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(wsvnc_port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
             container_fw_data["detach"] = True
             container_fw_data["tty"] = True
             container_fw_data["image"] = "akhetbase/akhet-firewall"
-            container_fw_data["hostname"] = "akhetinstance" + str(port)
+            container_fw_data["hostname"] = "akhetinstance" + str(wsvnc_port)
             container_fw_data["ports"] = fw_ports
             container_fw_data["environment"] = environment_fw
             containerFirewall = c.create_container( **container_fw_data)
@@ -558,9 +558,9 @@ def do_create(token):
         hostcfg = c.create_host_config(**hostcfg_data)
 
 
-        container_data["name"] = "akhetinstance-" + str(port)
+        container_data["name"] = "akhetinstance-" + str(wsvnc_port)
         container_data["host_config"] = hostcfg
-        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
+        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(wsvnc_port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
         container_data["detach"] = True
         container_data["tty"] = True
         container_data["image"] = confbunch.request_img
@@ -577,7 +577,7 @@ def do_create(token):
         else:
             nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
-        open("/var/www/wsvnc/allowedports/"+str(port) , 'a').close()
+        open("/var/www/wsvnc/allowedports/"+str(wsvnc_port) , 'a').close()
         open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
 
 
@@ -599,8 +599,8 @@ def do_create(token):
 
         data = {}
         data["instance_node"] = nodeaddr # return node where akhet instance is running
-        data["instance_port"] = port # return node port where akhet instance is running
-        data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, port) #  return wsvnc port if ahket as proxy
+        data["instance_port"] = wsvnc_port # return node port where akhet instance is running
+        data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, wsvnc_port) #  return wsvnc port if ahket as proxy
         data["instance_ws_paths"] = additional_ws_binding_paths
         data["instance_http_paths"] = additional_http_binding_paths
         data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
