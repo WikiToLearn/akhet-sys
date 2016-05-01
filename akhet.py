@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/python
+import tarfile
 import configparser
 import htpasswd
 from docker import Client
@@ -16,18 +17,19 @@ import string
 import _thread
 import threading
 import sys
+import json
 from time import sleep
 
 class Bunch(object):
     def __init__(self, adict):
         self.__dict__.update(adict)
-    
+
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
         return akhetconfig.get(section, option)
     else:
         return default_argument
-    
+
 def read_group_config(profile_list, section_prefix):
     for profile in profile_list:
         profile_section = "{}:{}".format(section_prefix, profile)
@@ -49,17 +51,17 @@ def read_group_config(profile_list, section_prefix):
 
 profiles = {}
 profile_options = {}
-        
+
 akhetconfig = configparser.ConfigParser()
 akhetconfig.read("/akhet.ini")
 
 profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blacklistdest', 'blacklistport']
 profile_options['resource'] = ['ram']
-profile_options['mountable'] = ['hostpath','guestpath']
+profile_options['storage'] = ['hostpath','guestpath']
 
 profiles['network'] = {}
 profiles['resource'] = {}
-profiles['mountable'] = {}
+profiles['storage'] = {}
 
 network_profiles = try_read_config("Akhet", "network_profiles")
 if network_profiles:
@@ -69,15 +71,19 @@ resource_profiles = try_read_config("Akhet", "resource_profiles")
 if resource_profiles:
     read_group_config(resource_profiles.split(','), "resource")
 
-mountables = try_read_config("Akhet", "mountables")
-if mountables:
-    read_group_config(mountables.split(','), "mountable")
+storages = try_read_config("Akhet", "storages")
+if storages:
+    read_group_config(storages.split(','), "storage")
 
 wsvnc_port_start = int(try_read_config("Akhet", "wsvnc_port_start", 1000))
 wsvnc_port_end = int(try_read_config("Akhet", "wsvnc_port_end", 1005))
 
 ws_port_start = int(try_read_config("Akhet", "ws_port_start", 2000))
-ws_port_end = int(try_read_config("Akhet", "ws_port_end", 2005))
+ws_port_end = int(try_read_config("Akhet", "ws_port_end", 2010))
+
+http_port_start = int(try_read_config("Akhet", "http_port_start", 3000))
+http_port_end = int(try_read_config("Akhet", "http_port_end", 3010))
+
 
 external_port = int(try_read_config("Akhet", "external_port", 80))
 external_ssl_port = int(try_read_config("Akhet", "external_ssl_port", 443))
@@ -90,7 +96,6 @@ ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
 ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
 socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
-homedir_folder = try_read_config("Akhet", "homes_basepath", "/var/homedirs")
 
 public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
@@ -111,7 +116,7 @@ with htpasswd.Basic("/var/www/htpasswd") as userdb:
     except htpasswd.basic.UserExists as e:
         print(e)
 
-if (connection_method == "socket"):  
+if (connection_method == "socket"):
     print("Connecting through socket...")
     c = Client(base_url="unix:/{}".format(socket_file))
 else:
@@ -142,8 +147,18 @@ def resp_json(data):
         resp = jsonify(replaydata)
     return resp
 
-def get_pass(n):
+def get_random_string(n):
     return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(n))
+
+def image_validate(image,alsobase=True):
+    status = False
+    allowed_namespaces = ["akhet"]
+    if alsobase:
+        allowed_namespaces.append("akhetbase")
+    for allowed_namespace in allowed_namespaces:
+        if image.startswith("{}/".format(allowed_namespace)):
+            status = True
+    return status
 
 def validate(test_str):
     try:
@@ -191,7 +206,7 @@ def wsvnc_port_first_free(used_ports_list=[]):
             try_port += 1
         else:
             port_found = True
-        
+
     if try_port <= wsvnc_port_end:
         print("Port selected {}".format(try_port))
         return try_port
@@ -213,19 +228,38 @@ def ws_port_first_free(used_ports_list=[]):
         return try_port
     else:
         return None
-            
+
+def http_port_first_free(used_ports_list=[]):
+    ports_list = port_used(used_ports_list)
+    try_port = http_port_start
+    port_found = False
+    while try_port <= (http_port_end+1) and not port_found:
+        if try_port in ports_list:
+            try_port += 1
+        else:
+            port_found = True
+
+    if try_port <= http_port_end:
+        print("Port selected {}".format(try_port))
+        return try_port
+    else:
+        return None
+
 @app.route('/')
 def index():
     return resp_json("Akhet")
 
 @app.route('/gc')
 @app.route('/0.8/gc')
-def do_0_1_gc():
+def do_0_8_gc():
     count = 0
     # Garbage collect
     for d in c.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
         print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedVNCPort"]))
-        c.remove_container(d)
+        try:
+            c.remove_container(d)
+        except Exception as e:
+            pass
         count = count + 1
     return resp_json({"deletedcount": count})
 
@@ -256,246 +290,278 @@ def do_poll():
 #     the name of the docker image to start. must come from a trusted vendor
 #
 # Arguments to "create" (optional):
-# * network TODO FIXME
+# * user_label
+#     User display name
+# * network
 #     the network profile to associate to the session instanciated (default: default)
-# * resource TODO FIXME
+# * resource
 #     the physical resources profile to associate to the session instanciated (default: default)
-# * uid TODO
+# * uid
 #     numerical id to assign as UID to the user created (default: 1000)
-# * gid TODO
+# * gid
 #     list of numerical ids to assign to the user in these fashions
-#   # TODO: we have to accept either [1, 2, 3, ...]
-#   # TODO: or [{"name": "group1", "id": 1}, {"name": "group2", "id": 2} ...]
-# * storage TODO FIXME (quasi)
-#     volatile or persistent (i.e. the home directory is mounted, default)
-# * mountables TODO
-#      list of mountables to mount in host
-# * env FIXME
+#     we have to accept [1, 2, 3, ...]
+# * storages
+#      list of storages to mount in host
+# * env
 #      list of environmental variables to set to the guest
-# * enable_cuda TODO 
+# * notimeout
+#      true/false to allow/disallow forever connections
+# * shared
+#      true/false to allow/disallow instance to be shared
+# * additional_ws
+#      list [80,443] of port for additional websockets
+# * additional_http
+#      list [80,443] of port for additional http
+# * enable_cuda
 #      if you want to enable cuda, pass anything to this parameter
 ###
 
 @app.route('/0.8/instance', methods=['POST'])
-def do_0_1_create():
+def do_0_8_create():
+    instance_data={}
     if request.headers['Content-Type'] != 'application/json':
         return({"errorno": 7, "error": "You have to send application/json"})
 
     if 'user' not in request.json:
         return resp_json({"errorno": 8, "error": "Missing user"})
-    usr = validate(request.json['user'])
+    instance_data['request_user'] = validate(request.json['user'])
 
     if 'image' not in request.json:
         return resp_json({"errorno": 9, "error": "Missing image"})
-    img = validate(request.json['image'])
+    instance_data['request_img'] = validate(request.json['image'])
 
     if 'network' in request.json:
-        network = validate(request.json['network'])
+        instance_data['request_network'] = validate(request.json['network'])
     else:
-        network = "default"
+        instance_data['request_network'] = "default"
+
+    if 'user_label' in request.json:
+        instance_data['request_user_label'] = validate(request.json['user_label'])
+    else:
+        instance_data['request_user_label'] = "Akhet User"
 
     if 'resource' in request.json:
-        resource = validate(request.json['resource'])
+        instance_data['request_resource'] = validate(request.json['resource'])
     else:
-        resource = "default"
+        instance_data['request_resource'] = "default"
 
     if 'uid' in request.json:
-        uid = request.json['uid']
+        instance_data['request_uid'] = request.json['uid']
     else:
-        uid = "1000"
+        instance_data['request_uid'] = "1000"
 
     if 'gids' in request.json:
-        gids = request.json['gids']
+        instance_data['request_gids'] = request.json['gids']
     else:
-        gids = ["1000"]
+        instance_data['request_gids'] = ["1000"]
 
-    if 'storage' in request.json:
-        storage = validate(request.json['storage'])
+    if 'storages' in request.json:
+        instance_data['request_storages'] = request.json['storages']
     else:
-        storage = "persistent"
-
-    if 'mountables' in request.json:
-        mountables = request.json['mountables']
-    else:
-        mountables = []
+        instance_data['request_storages'] = ["default"]
 
     if 'enable_cuda' in request.json:
-        enable_cuda = validate(request.json['enable_cuda'])
+        instance_data['request_enable_cuda'] = validate(request.json['enable_cuda'])
     else:
-        enable_cuda = False
+        instance_data['request_enable_cuda'] = False
 
     if 'env' in request.json:
-        user_env_vars = request.json['env']
+        instance_data['request_env'] = request.json['env']
     else:
-        user_env_vars = {}
+        instance_data['request_env'] = {}
 
     if 'notimeout' in request.json:
-        notimeout = validate(request.json['notimeout'])
+        instance_data['request_notimeout'] = validate(request.json['notimeout'])
     else:
-        notimeout = False
+        instance_data['request_notimeout'] = False
 
     if 'shared' in request.json:
-        shared = validate(request.json['shared'])
+        instance_data['request_shared'] = validate(request.json['shared'])
     else:
-        shared = False
+        instance_data['request_shared'] = False
 
     if 'additional_ws' in request.json:
-        additional_ws = request.json['additional_ws']
+        instance_data['request_additional_ws'] = request.json['additional_ws']
     else:
-        additional_ws = []
+        instance_data['request_additional_ws'] = []
 
-    if not img[0:6] == "akhet/":
-       return resp_json({"errorno": 6, "error": "Image %s not allowed" % img})
+    if 'additional_http' in request.json:
+        instance_data['request_additional_http'] = request.json['additional_http']
+    else:
+        instance_data['request_additional_http'] = []
 
-    completeImg = "%s" % img # only support official images
-    
+    if (len(instance_data['request_user']) == 0):
+        return resp_json({"errorno": 3, "error": "Invalid user"})
+    if (len(instance_data['request_img']) == 0):
+        return resp_json({"errorno": 4, "error":"Image not valid"})
+
     try:
-        c.inspect_image(completeImg)
+        c.inspect_image(instance_data['request_img'])
     except:
         return resp_json({"errorno": 1, "error": "Missing image %s" % img})
 
-    if (len(usr) == 0):
-        return resp_json({"errorno": 3, "error": "Invalid user"})
-    if (len(img) == 0):
-        return resp_json({"errorno": 4, "error":"Image not valid"})
+    if not image_validate(instance_data['request_img']):
+       return resp_json({"errorno": 6, "error": "Image %s not allowed" % img})
 
-    threadId = get_pass(32)
-    instanceRegistry[threadId] = {"status": 0}
-    
-    _thread.start_new_thread(do_create, (Bunch(locals()),) )
-    return resp_json({"token": threadId})
+    instance_data['status']  = 0
+
+    locker.acquire()
+    token = get_random_string(32)
+    instance_data['token']  = token
+    instanceRegistry[token] = instance_data
+    locker.release()
+
+    _thread.start_new_thread(do_create, (token,) )
+    return resp_json(instanceRegistry[token])
 
 locker = threading.Lock()
 
 ##### threaded stuff
-def do_create(confbunch):
+def do_create(token):
+    confbunch = Bunch(instanceRegistry[token])
     additional_ws_binding = {}
+    additional_http_binding = {}
+    additional_used_ports=[]
 
     locker.acquire()
-    port = wsvnc_port_first_free()
+    port = wsvnc_port_first_free(additional_used_ports)
 
     missing_additional_ws_port = False
-    for additional_ws_port in confbunch.additional_ws:
-        additional_ws_binding[additional_ws_port] = ws_port_first_free([additional_ws_binding[x] for x in additional_ws_binding])
+    for additional_ws_port in confbunch.request_additional_ws:
+        additional_ws_binding[additional_ws_port] = ws_port_first_free(additional_used_ports)
         if additional_ws_binding[additional_ws_port] == None:
             missing_additional_ws_port = True
+        else:
+            additional_used_ports.append(additional_ws_binding[additional_ws_port])
+
+    missing_additional_http_port = False
+    for additional_http_port in confbunch.request_additional_http:
+        additional_http_binding[additional_http_port] = http_port_first_free(additional_used_ports)
+        if additional_http_binding[additional_http_port] == None:
+            missing_additional_http_port = True
+        else:
+            additional_used_ports.append(additional_http_binding[additional_http_port])
 
     if port == None:
-        instanceRegistry[confbunch.threadId] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
+        instanceRegistry[token] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
         locker.release()
     elif missing_additional_ws_port:
-        instanceRegistry[confbunch.threadId] = {"errorno": 12, "error": "No ports available. Please try again later."} # estimated time
+        instanceRegistry[token] = {"errorno": 12, "error": "No ports available for additional ws. Please try again later."} # estimated time
+        locker.release()
+    elif missing_additional_http_port:
+        instanceRegistry[token] = {"errorno": 13, "error": "No ports available for additional http. Please try again later."} # estimated time
         locker.release()
     else:
-        user_home_dir = '%s/%s' % (homedir_folder, confbunch.usr)
+        # create the volumes mountpoints
         volumes = []
         volumes_bind = []
-        if confbunch.storage == "persistent":
-            volumes.append(user_home_dir)
-            volumes_bind.append('%s:/home/user' % user_home_dir)
+        for storage in confbunch.request_storages:
+            string_placeholders = {}
+            string_placeholders["username"] = confbunch.request_user
 
-        for mountable in confbunch.mountables:
-            hostpath  = profiles["mountable"][mountable]['hostpath']
-            guestpath = profiles["mountable"][mountable]['guestpath']
+            hostpath  = profiles["storage"][storage]['hostpath'].format(**string_placeholders)
+            guestpath = profiles["storage"][storage]['guestpath'].format(**string_placeholders)
+
             volumes.append(hostpath)
             volumes_bind.append('%s:%s' % (hostpath, guestpath))
 
-        confdict = {}
-        confdict['blacklistdest'] = None
-        confdict['blacklistport'] = None
-        confdict['allowddest'] = None
-        confdict['allowdport'] = None
-        confdict['defaultrule'] = None
+        environment_fw = {}
+        environment_fw['blacklistdest'] = None
+        environment_fw['blacklistport'] = None
+        environment_fw['allowddest'] = None
+        environment_fw['allowdport'] = None
+        environment_fw['defaultrule'] = None
 
-        for k in confdict.keys():
-            if confbunch.network in profiles["network"].keys():
-                if profiles["network"][confbunch.network][k] != None:
-                    confdict[k] = ' '.join(profiles["network"][confbunch.network][k].split(","))
+        for k in environment_fw.keys():
+            if confbunch.request_network in profiles["network"].keys():
+                if profiles["network"][confbunch.request_network][k] != None:
+                    environment_fw[k] = ' '.join(profiles["network"][confbunch.request_network][k].split(","))
 
         # create firewall docker to limit network
         try:
+
             fw_port_bindings = {6080:port}
             fw_ports = [6080]
             for binding in additional_ws_binding:
                 fw_port_bindings[binding] = additional_ws_binding[binding]
                 fw_ports.append(binding)
-            hostcfg = c.create_host_config(port_bindings=fw_port_bindings, privileged=True)
+            for binding in additional_http_binding:
+                fw_port_bindings[binding] = additional_http_binding[binding]
+                fw_ports.append(binding)
+
+            hostcfg_fw_data={}
+            hostcfg_fw_data['port_bindings']=fw_port_bindings
+            hostcfg_fw_data['privileged'] = True
+            hostcfg_fw = c.create_host_config(**hostcfg_fw_data)
 
             container_fw_data = {}
             container_fw_data["name"] = "akhetinstance-fw-" + str(port)
-            container_fw_data["host_config"] = hostcfg
-            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(additional_ws_binding[x]) for x in additional_ws_binding)}
+            container_fw_data["host_config"] = hostcfg_fw
+            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
             container_fw_data["detach"] = True
             container_fw_data["tty"] = True
             container_fw_data["image"] = "akhetbase/akhet-firewall"
             container_fw_data["hostname"] = "akhetinstance" + str(port)
             container_fw_data["ports"] = fw_ports
-            container_fw_data["environment"] = confdict
+            container_fw_data["environment"] = environment_fw
             containerFirewall = c.create_container( **container_fw_data)
         except:
             print("ERROR: Missing firewall image")
-            instanceRegistry[confbunch.threadId] = {"errorno":5, "error":"Missing firewall image"}
+            instanceRegistry[token] = {"errorno":5, "error":"Missing firewall image"}
+
         c.start(container=containerFirewall.get('Id'))
         firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
 
-        confdict = {}
-        confdict['AKHETBASE_VNCPASS'] = get_pass(8)
-        confdict['AKHETBASE_USER'] = confbunch.usr
-        confdict['AKHETBASE_USER_LABEL'] = "Akhet User"
-        confdict['AKHETBASE_UID'] = confbunch.uid
-        confdict['AKHETBASE_GIDs'] = " ".join(str(x) for x in confbunch.gids)
-        if confbunch.notimeout:
-            confdict['AKHETBASE_NOTIMEOUT'] = '1'
-        if confbunch.shared:
-            confdict['AKHETBASE_SHARED'] = '1'
+        environment = {}
+        environment['AKHETBASE_VNCPASS'] = get_random_string(8)
+        environment['AKHETBASE_USER'] = confbunch.request_user
+        environment['AKHETBASE_USER_LABEL'] = confbunch.request_user_label
+        environment['AKHETBASE_UID'] = confbunch.request_uid
+        environment['AKHETBASE_GIDs'] = " ".join(str(x) for x in confbunch.request_gids)
+        if confbunch.request_notimeout:
+            environment['AKHETBASE_NOTIMEOUT'] = '1'
+        if confbunch.request_shared:
+            environment['AKHETBASE_SHARED'] = '1'
 
-        for var in confbunch.user_env_vars:
+        for var in confbunch.request_env:
             var_name = "AKHET_{}".format(var)
-            var_value = confbunch.user_env_vars[var]
-            if var_name not in confdict:
-                confdict[var_name] = var_value
+            var_value = confbunch.request_env[var]
+            if var_name not in environment:
+                environment[var_name] = var_value
         hostcfg_data={}
         container_data = {}
 
-        if confbunch.resource in profiles["resource"].keys():
-            if profiles["resource"][confbunch.resource]['ram'] != None:
-                hostcfg_data["mem_limit"] = profiles["resource"][confbunch.resource]['ram']
-    
+        if confbunch.request_resource in profiles["resource"].keys():
+            if profiles["resource"][confbunch.request_resource]['ram'] != None:
+                hostcfg_data["mem_limit"] = profiles["resource"][confbunch.request_resource]['ram']
+
         hostcfg_data["network_mode"]="container:" + firewallname
         hostcfg_data["binds"] = volumes_bind
-    
+
         if(cuda):
-            if(confbunch.enable_cuda):
+            if(confbunch.request_enable_cuda):
                 cuda_devs=[]
                 cuda_devs.append("/dev/nvidiactl")
                 cuda_devs.append("/dev/nvidia-uvm")
                 for d in cuda_devices:
                     cuda_devs.append(d)
                 hostcfg_data["devices"] = cuda_devs
-        
+
         hostcfg = c.create_host_config(**hostcfg_data)
-    
-    
+
+
         container_data["name"] = "akhetinstance-" + str(port)
         container_data["host_config"] = hostcfg
-        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(additional_ws_binding[x]) for x in additional_ws_binding)}
+        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
         container_data["detach"] = True
         container_data["tty"] = True
-        container_data["image"] = confbunch.completeImg
-        container_data["environment"] = confdict
+        container_data["image"] = confbunch.request_img
+        container_data["environment"] = environment
         container_data["volumes"] = volumes
-    
+
         container = c.create_container( **container_data)
         c.start(container=container.get('Id'))
-
-        print("Wait for VNC server")
-        wait_for_vnc_server = True
-        while wait_for_vnc_server:
-            wait_vnc_server_exec = c.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
-            wait_vnc_server_exec_output = c.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
-            wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=') 
-            wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
-            sleep(0.01)
 
         # get node address
         # FIXME: check if we're really in a docker swarm
@@ -512,30 +578,77 @@ def do_create(confbunch):
             open("/var/www/ws/allowedports/"+str(additional_ws_binding[binding]) , 'a').close()
             open("/var/www/ws/allowedhosts/"+nodeaddr  , 'a').close()
 
+        for binding in additional_http_binding:
+            open("/var/www/http/allowedports/"+str(additional_http_binding[binding]) , 'a').close()
+            open("/var/www/http/allowedhosts/"+nodeaddr  , 'a').close()
+
         additional_ws_binding_paths = {}
         for binding in additional_ws_binding:
             additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
+
+        additional_http_binding_paths = {}
+        for binding in additional_http_binding:
+            additional_http_binding_paths[binding] = "/http/%s/%s" % (nodeaddr, additional_http_binding[binding])
 
         data = {}
         data["instance_node"] = nodeaddr # return node where akhet instance is running
         data["instance_port"] = port # return node port where akhet instance is running
         data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, port) #  return wsvnc port if ahket as proxy
         data["instance_ws_paths"] = additional_ws_binding_paths
-        data["instance_password"] = confdict['AKHETBASE_VNCPASS']  # return password for vnc instance
+        data["instance_http_paths"] = additional_http_binding_paths
+        data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
         data["host_port"] = external_port # return akhet unssl port
         data["host_ssl_port"] = external_ssl_port # return akhet ssl port
         data["host_name"] = public_hostname # return akhet hostn
         data["status"] = 1
-   
-        instanceRegistry[confbunch.threadId] = data
+        data["docker_id"] = container.get('Id')
+
+
+        print("Wait for VNC server")
+        wait_for_vnc_server = True
+        while wait_for_vnc_server:
+            wait_vnc_server_exec = c.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
+            wait_vnc_server_exec_output = c.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
+            wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
+            wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
+            sleep(0.01)
+
+        instanceRegistry[token] = data
         locker.release()
-    
-        print("Waiting for the death of", container.get('Id'))
+
+        # create a json file inside the docker to pass the akhet instance info inside the docker itself
+        tmp_dir_name="/tmp/{}".format(token)
+        tar_name="{}/akhet.tar".format(tmp_dir_name);
+        info_file_name="{}/akhet.json".format(tmp_dir_name)
+        os.mkdir(tmp_dir_name)
+        text_file = open(info_file_name, "w")
+        text_file.write(json.dumps(data))
+        text_file.close()
+        with tarfile.open(tar_name, "w") as tar:
+            tar.add(info_file_name, filter=tarfile_info_akhet_json)
+        c.put_archive(container=container.get('Id'),path="/",data=open(tar_name, "rb").read())
+        os.remove(info_file_name)
+        os.remove(tar_name)
+        os.rmdir(tmp_dir_name)
+
+        print("Waiting for the d)eath of ", container.get('Id'))
+
         c.wait(container.get('Id'))
-        del instanceRegistry[confbunch.threadId]
+        print("Death of ", container.get('Id'))
+
+        locker.acquire()
+        del instanceRegistry[token]
+        locker.release()
+
+def tarfile_info_akhet_json(tarinfo):
+    tarinfo.uid = tarinfo.gid = 0
+    tarinfo.uname = tarinfo.gname = "root"
+    tarinfo.name = "/akhet.json"
+    tarinfo.mode = 0o400
+    return tarinfo
 
 @app.route('/0.8/hostinfo')
-def do_0_1_hostinfo():
+def do_0_8_hostinfo():
     data = {}
     data["host_port"] = external_port # return akhet unssl port
     data["host_ssl_port"] = external_ssl_port # return akhet ssl port
@@ -544,25 +657,28 @@ def do_0_1_hostinfo():
     return resp_json(data)
 
 @app.route('/0.8/imagesonline')
-def do_0_1_imagesonline():
+def do_0_8_imagesonline():
     data = []
     for image in c.search('akhet'):
-        if image['name'].startswith("akhet/"):
+        if image_validate(image['name'],False):
             data.append(image['name'])
     return resp_json(data)
 
 @app.route('/0.8/imageslocal')
-def do_0_1_imageslocal():
+def do_0_8_imageslocal():
     data = {}
     for image in c.images():
         for image_tag in image['RepoTags']:
-            if image_tag.startswith("akhet/"):
+            if image_validate(image_tag):
                 image_info = image_tag.split(':')
                 if image_info[1] == "latest":
                     if not image_info[0] in data:
                         inspect = c.inspect_image(image_tag)
-                        data[image_info[0]] = {"Versions":inspect['RepoTags'],"Author":inspect['Author']}
+                        versions=[]
+                        for repo_tag in inspect['RepoTags']:
+                            versions.append(repo_tag[len(image_info[0])+1:])
+                        data[image_info[0]] = {"versions":versions}
     return resp_json(data)
 
 if __name__ == '__main__':
-    app.run(debug=False)
+    app.run(debug=True)

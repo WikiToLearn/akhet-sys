@@ -32,6 +32,11 @@ mkdir /var/www/ws/
 mkdir /var/www/ws/allowedports/
 mkdir /var/www/ws/allowedhosts/
 
+rm -Rf /var/www/http/
+mkdir /var/www/http/
+mkdir /var/www/http/allowedports/
+mkdir /var/www/http/allowedhosts/
+
 /etc/init.d/dnsmasq start
 /etc/init.d/nginx start
 
