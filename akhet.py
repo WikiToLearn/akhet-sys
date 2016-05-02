@@ -96,6 +96,7 @@ ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
 ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
 socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
+allowed_image_namespaces = try_read_config("Akhet", "allowed_image_namespaces", "akhet")
 
 public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
@@ -152,7 +153,7 @@ def get_random_string(n):
 
 def image_validate(image,alsobase=True):
     status = False
-    allowed_namespaces = ["akhet"]
+    allowed_namespaces = allowed_image_namespaces.split(',')
     if alsobase:
         allowed_namespaces.append("akhetbase")
     for allowed_namespace in allowed_namespaces:
@@ -399,10 +400,10 @@ def do_0_8_create():
     try:
         c.inspect_image(instance_data['request_img'])
     except:
-        return resp_json({"errorno": 1, "error": "Missing image %s" % img})
+        return resp_json({"errorno": 1, "error": "Missing image %s" % instance_data['request_img']})
 
     if not image_validate(instance_data['request_img']):
-       return resp_json({"errorno": 6, "error": "Image %s not allowed" % img})
+       return resp_json({"errorno": 6, "error": "Image %s not allowed" % instance_data['request_img']})
 
     instance_data['status']  = 0
 
