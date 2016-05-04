@@ -648,6 +648,50 @@ def do_create(token):
         del instanceRegistry[token]
         locker.release()
 
+@app.route('/0.8/instance-resolution', methods=['GET'])
+def do_0_8_instance_resolution_get():
+    if request.headers['Content-Type'] != 'application/json':
+        return({"errorno": 7, "error": "You have to send application/json"})
+
+    if 'token' not in request.json:
+        return resp_json({"errorno": 18, "error": "Missing token"})
+    token = request.json['token']
+    instance_data = instanceRegistry[token]
+
+    vnc_server_exec = c.exec_create(container=instance_data['docker_id'],cmd="/usr/local/bin/akhet-resolutions.sh get")
+    vnc_server_exec_output = c.exec_start(exec_id=vnc_server_exec).decode('utf-8').strip().split("\n")
+    resolutions = []
+    for row in vnc_server_exec_output:
+        row_split_by_x = row.split('x')
+        try:
+            resolutions.append({'width':row_split_by_x[0],'height':row_split_by_x[1]})
+        except:
+            resolutions.append(row_split_by_x)
+    return resp_json(resolutions)
+
+@app.route('/0.8/instance-resolution', methods=['POST'])
+def do_0_8_instance_resolution_post():
+    if request.headers['Content-Type'] != 'application/json':
+        return({"errorno": 7, "error": "You have to send application/json"})
+
+    if 'token' not in request.json:
+        return resp_json({"errorno": 18, "error": "Missing token"})
+    token = request.json['token']
+
+    if 'height' not in request.json:
+        return resp_json({"errorno": 18, "error": "Missing height"})
+    height = request.json['height']
+
+    if 'width' not in request.json:
+        return resp_json({"errorno": 18, "error": "Missing width"})
+    width = request.json['width']
+
+    instance_data = instanceRegistry[token]
+
+    vnc_server_exec = c.exec_create(container=instance_data['docker_id'],cmd="/usr/local/bin/akhet-resolutions.sh set {}x{}".format(width,height))
+    vnc_server_exec_output = c.exec_start(exec_id=vnc_server_exec).decode('utf-8').strip()
+    return resp_json(vnc_server_exec_output)
+
 def tarfile_info_akhet_json(tarinfo):
     tarinfo.uid = tarinfo.gid = 0
     tarinfo.uname = tarinfo.gname = "root"
