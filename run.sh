@@ -37,7 +37,7 @@ mkdir /var/www/http/
 mkdir /var/www/http/allowedports/
 mkdir /var/www/http/allowedhosts/
 
-/etc/init.d/dnsmasq start
+echo resolver $(awk 'BEGIN{ORS=" "} $1=="nameserver" {print $2}' /etc/resolv.conf) ";" > /etc/nginx/resolvers.conf
 /etc/init.d/nginx start
 
 cron

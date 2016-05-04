@@ -11,19 +11,27 @@ server {
   index index.html;
  }
 
- resolver 127.0.0.1;
- location ~* ^/(0\.8)/ {
+ proxy_intercept_errors off;
+ proxy_set_header Host $host;
+ proxy_set_header X-Real-IP $remote_addr;
+ proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+ proxy_set_header X-Forwarded-Proto $scheme;
+ proxy_buffering off;
 
+ client_body_timeout 36000;                                                                       
+ keepalive_timeout 36000;                                                                          
+ proxy_connect_timeout  36000s;                                                                   
+ proxy_read_timeout  36000s;                                                                       
+ proxy_send_timeout  36000s;
+ client_max_body_size 0;
+
+ include resolvers.conf;
+
+ location ~* ^/(0\.8)/ {
   auth_basic "Administrator Login";
   auth_basic_user_file /var/www/htpasswd;
 
-  proxy_intercept_errors off;
   proxy_pass http://127.0.0.1:5000;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
-
   add_header 'Access-Control-Allow-Origin' '*';
   add_header 'Access-Control-Allow-Credentials' 'true';
   add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS';
@@ -33,7 +41,7 @@ server {
  location ^~ /wsvnc/ {
   set $dockerhost localhost;
   set $porta 0;
-  if ($request_uri ~ /wsvnc/([a-zA-Z0-9.]*)/([0-9]*) ) {
+  if ($request_uri ~ /wsvnc/([a-zA-Z0-9.\-]*)/([0-9]*) ) {
    set $dockerhost $1;
    set $porta $2;
   }
@@ -49,20 +57,15 @@ server {
   if ($test != AB) {
    return 401;
   }
-  proxy_intercept_errors off;
   proxy_http_version 1.1;
   proxy_set_header Upgrade $http_upgrade;
   proxy_set_header Connection "upgrade";
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
  }
 
  location ^~ /ws/ {
   set $dockerhost localhost;
   set $porta 0;
-  if ($request_uri ~ /ws/([a-zA-Z0-9.]*)/([0-9]*) ) {
+  if ($request_uri ~ /ws/([a-zA-Z0-9.\-]*)/([0-9]*) ) {
    set $dockerhost $1;
    set $porta $2;
   }
@@ -78,20 +81,15 @@ server {
   if ($test != AB) {
    return 401;
   }
-  proxy_intercept_errors off;
   proxy_http_version 1.1;
   proxy_set_header Upgrade $http_upgrade;
   proxy_set_header Connection "upgrade";
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
  }
 
  location ^~ /http/ {
   set $dockerhost localhost;
   set $porta 0;
-  if ($request_uri ~ ^/http/([a-zA-Z0-9.]*)/([0-9]*) ) {
+  if ($request_uri ~ ^/http/([a-zA-Z0-9.\-]*)/([0-9]*) ) {
    set $dockerhost $1;
    set $porta $2;
   }
@@ -111,11 +109,6 @@ server {
   if ($test != AB) {
    return 401;
   }
-  proxy_intercept_errors off;
-  proxy_set_header Host $host;
-  proxy_set_header X-Real-IP $remote_addr;
-  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-  proxy_set_header X-Forwarded-Proto $scheme;
  }
 
 }
