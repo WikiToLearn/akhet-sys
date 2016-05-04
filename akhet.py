@@ -96,7 +96,6 @@ ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
 ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
 socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
-allowed_image_namespaces = try_read_config("Akhet", "allowed_image_namespaces", "akhet")
 
 public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
 
@@ -120,12 +119,14 @@ with htpasswd.Basic("/var/www/htpasswd") as userdb:
 if (connection_method == "socket"):
     print("Connecting through socket...")
     c = Client(base_url="unix:/{}".format(socket_file))
-else:
+elif (connection_method == "tcp"):
     print("Connecting through TCP...")
-    # tls auth for swarm cluster
+    c = Client(base_url='tcp://{}:{}'.format(remote_host, remote_port))
+else:
+    print("Connecting through HTTPS...")
+    # tls auth
     tls_config = TLSConfig(client_cert=(ssl_cert_file, ssl_key_file), verify=ssl_ca, ca_cert=ssl_ca)
     c = Client(base_url='https://{}:{}'.format(remote_host, remote_port), tls=tls_config)
-
 try:
     c.info()
 except:
@@ -153,7 +154,7 @@ def get_random_string(n):
 
 def image_validate(image,alsobase=True):
     status = False
-    allowed_namespaces = allowed_image_namespaces.split(',')
+    allowed_namespaces = ["akhet"]
     if alsobase:
         allowed_namespaces.append("akhetbase")
     for allowed_namespace in allowed_namespaces:
@@ -488,7 +489,6 @@ def do_create(token):
 
         # create firewall docker to limit network
         try:
-
             fw_port_bindings = {6080:wsvnc_port}
             fw_ports = [6080]
             for binding in additional_ws_binding:
