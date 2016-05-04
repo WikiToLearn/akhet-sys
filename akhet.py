@@ -19,6 +19,8 @@ import threading
 import sys
 import json
 from time import sleep
+import datetime
+import dateutil.parser
 
 class Bunch(object):
     def __init__(self, adict):
@@ -176,13 +178,13 @@ def port_used(ports_list = []):
     list_containers = c.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
     for container in list_containers:
         try:
-            my_port = int(container["Labels"]["UsedVNCPort"]) # this is to avoid name collision
+            my_port = int(container["Labels"]["akhetUsedVNCPort"]) # this is to avoid name collision
             if my_port not in ports_list:
                 ports_list.append(my_port)
         except:
             pass
         try:
-            my_ports = container["Labels"]["UsedPorts"].split(',')
+            my_ports = container["Labels"]["akhetUsedPorts"].split(',')
             for my_port_str in my_ports:
                 my_port_int = int(my_port_str)
                 if my_port_int not in ports_list:
@@ -255,9 +257,17 @@ def index():
 @app.route('/0.8/gc')
 def do_0_8_gc():
     count = 0
-    # Garbage collect
+    for d in c.containers(all=True, filters={"status":"running", "label":"akhetinstance=yes"}):
+        cinfo=c.inspect_container(container=d['Id'])
+        started_time = dateutil.parser.parse( cinfo['State']['StartedAt'] )
+        if 'akhetTTL' in cinfo['Config']['Labels']:
+            instance_ttl = int(cinfo['Config']['Labels']['akhetTTL'])
+            if instance_ttl != 0:
+                if( (datetime.datetime.now().replace(tzinfo=None) - started_time.replace(tzinfo=None) ).total_seconds() > instance_ttl ):
+                    c.kill(container=d['Id'])
+
     for d in c.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
-        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["UsedVNCPort"]))
+        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["akhetUsedVNCPort"]))
         try:
             c.remove_container(d)
         except Exception as e:
@@ -317,6 +327,8 @@ def do_poll():
 #      list [80,443] of port for additional http
 # * enable_cuda
 #      if you want to enable cuda, pass anything to this parameter
+# * instance_ttl
+#      seconds for the akhet instance, 0 is no limit
 ###
 
 @app.route('/0.8/instance', methods=['POST'])
@@ -392,6 +404,11 @@ def do_0_8_create():
         instance_data['request_additional_http'] = request.json['additional_http']
     else:
         instance_data['request_additional_http'] = []
+
+    if 'instance_ttl' in request.json:
+        instance_data['request_instance_ttl'] = request.json['instance_ttl']
+    else:
+        instance_data['request_instance_ttl'] = 0
 
     if (len(instance_data['request_user']) == 0):
         return resp_json({"errorno": 3, "error": "Invalid user"})
@@ -506,7 +523,7 @@ def do_create(token):
             container_fw_data = {}
             container_fw_data["name"] = "akhetinstance-fw-" + str(wsvnc_port)
             container_fw_data["host_config"] = hostcfg_fw
-            container_fw_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(wsvnc_port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
+            container_fw_data["labels"] = {"akhetinstance":"yes", "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
             container_fw_data["detach"] = True
             container_fw_data["tty"] = True
             container_fw_data["image"] = "akhetbase/akhet-firewall"
@@ -561,7 +578,7 @@ def do_create(token):
 
         container_data["name"] = "akhetinstance-" + str(wsvnc_port)
         container_data["host_config"] = hostcfg
-        container_data["labels"] = {"akhetinstance":"yes", "UsedVNCPort":str(wsvnc_port), "UsedPorts":",".join(str(x) for x in additional_used_ports)}
+        container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(confbunch.request_instance_ttl), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
         container_data["detach"] = True
         container_data["tty"] = True
         container_data["image"] = confbunch.request_img
@@ -572,7 +589,6 @@ def do_create(token):
         c.start(container=container.get('Id'))
 
         # get node address
-        # FIXME: check if we're really in a docker swarm
         if swarm_cluster:
             nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
         else:
