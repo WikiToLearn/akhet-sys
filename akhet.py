@@ -33,13 +33,14 @@ def try_read_config(section, option, default_argument=None):
         return default_argument
 
 def read_group_config(profile_list, section_prefix):
+    profiles_data = {}
     for profile in profile_list:
         profile_section = "{}:{}".format(section_prefix, profile)
         try:
             if akhetconfig.has_section(profile_section):
-                profiles[section_prefix][profile] = {}
+                profiles_data[profile] = {}
                 for option in profile_options[section_prefix]:
-                    profiles[section_prefix][profile][option] = try_read_config(profile_section, option)
+                    profiles_data[profile][option] = try_read_config(profile_section, option)
             else:
                 print("Missing ", profile, " profile for ", section_prefix)
         except:
@@ -47,96 +48,111 @@ def read_group_config(profile_list, section_prefix):
 
     if 'default' not in profile_list:
         print("Missing ", section_prefix, " default profile")
-        profiles[section_prefix]['default'] = {}
+        profiles_data['default'] = {}
         for option in profile_options[section_prefix]:
-            profiles[section_prefix]['default'][option] = None
+            profiles_data['default'][option] = None
+    return profiles_data
 
-profiles = {}
 profile_options = {}
-
-akhetconfig = configparser.ConfigParser()
-akhetconfig.read("/akhet.ini")
-
 profile_options['network'] = ['defaultrule', 'allowddest', 'allowdport', 'blacklistdest', 'blacklistport']
 profile_options['resource'] = ['ram']
 profile_options['storage'] = ['hostpath','guestpath']
 
-profiles['network'] = {}
-profiles['resource'] = {}
-profiles['storage'] = {}
+akhetconfig = configparser.ConfigParser()
+akhetconfig.read("/akhet.ini")
 
-network_profiles = try_read_config("Akhet", "network_profiles")
-if network_profiles:
-    read_group_config(network_profiles.split(','), "network")
+config = {}
+c = None
+def load_config():
+    global config
+    global c
+    config = {}
 
-resource_profiles = try_read_config("Akhet", "resource_profiles")
-if resource_profiles:
-    read_group_config(resource_profiles.split(','), "resource")
+    config['profiles'] = {}
+    config['profiles']['network'] = {}
+    config['profiles']['resource'] = {}
+    config['profiles']['storage'] = {}
 
-storages = try_read_config("Akhet", "storages")
-if storages:
-    read_group_config(storages.split(','), "storage")
+    network_profiles = try_read_config("Akhet", "network_profiles")
+    if network_profiles:
+        config['profiles']['network'] = read_group_config(network_profiles.split(','), "network")
 
-wsvnc_port_start = int(try_read_config("Akhet", "wsvnc_port_start", 1000))
-wsvnc_port_end = int(try_read_config("Akhet", "wsvnc_port_end", 1005))
+    resource_profiles = try_read_config("Akhet", "resource_profiles")
+    if resource_profiles:
+        config['profiles']['resource'] = read_group_config(resource_profiles.split(','), "resource")
 
-ws_port_start = int(try_read_config("Akhet", "ws_port_start", 2000))
-ws_port_end = int(try_read_config("Akhet", "ws_port_end", 2010))
+    storages = try_read_config("Akhet", "storages")
+    if storages:
+        config['profiles']['storage'] =read_group_config(storages.split(','), "storage")
 
-http_port_start = int(try_read_config("Akhet", "http_port_start", 3000))
-http_port_end = int(try_read_config("Akhet", "http_port_end", 3010))
+    config['ports'] = {}
+    config['ports']['wsvnc'] = {}
+    config['ports']['wsvnc']['start'] = int(try_read_config("Akhet", "wsvnc_port_start", 1000))
+    config['ports']['wsvnc']['end'] = int(try_read_config("Akhet", "wsvnc_port_end", 1005))
 
+    config['ports']['ws'] = {}
+    config['ports']['ws']['start'] = int(try_read_config("Akhet", "ws_port_start", 2000))
+    config['ports']['ws']['end'] = int(try_read_config("Akhet", "ws_port_end", 2010))
 
-external_port = int(try_read_config("Akhet", "external_port", 80))
-external_ssl_port = int(try_read_config("Akhet", "external_ssl_port", 443))
+    config['ports']['http'] = {}
+    config['ports']['http']['start'] = int(try_read_config("Akhet", "http_port_start", 3000))
+    config['ports']['http']['end'] = int(try_read_config("Akhet", "http_port_end", 3010))
 
-connection_method = try_read_config("Akhet", "connection_method", "socket")
-remote_host = try_read_config("Akhet", "remote_host", "swarm-manager")
-remote_port = int(try_read_config("Akhet", "remote_port", 2375))
-ssl_key_file = try_read_config("Akhet", "ssl_key_file", "/akhet.key")
-ssl_cert_file = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
-ssl_ca = try_read_config("Akhet", "ssl_ca", "/ca.crt")
-socket_file = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
+    config['external'] = {}
+    config['external']['port'] = int(try_read_config("Akhet", "external_port", 80))
+    config['external']['port_ssl'] = int(try_read_config("Akhet", "external_ssl_port", 443))
+    config['external']['hostname'] = try_read_config("Akhet", "public_hostname", "localhost")
 
+    config['docker'] = {}
+    config['docker']['connection_type'] = try_read_config("Akhet", "connection_method", "socket")
+    config['docker']['remote'] = {}
+    config['docker']['remote']['host'] = try_read_config("Akhet", "remote_host", "swarm-manager")
+    config['docker']['remote']['port'] = int(try_read_config("Akhet", "remote_port", 2375))
+    config['docker']['remote']['ssl_key_file'] = try_read_config("Akhet", "ssl_key_file", "/akhet.key")
+    config['docker']['remote']['ssl_cert_file'] = try_read_config("Akhet", "ssl_cert_file", "/akhet.crt")
+    config['docker']['remote']['ssl_ca'] = try_read_config("Akhet", "ssl_ca", "/ca.crt")
+    config['docker']['socket_file'] = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
-public_hostname = try_read_config("Akhet", "public_hostname", "localhost")
+    config['docker']['swarm'] = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
 
-swarm_cluster = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
+    config['api'] = {}
+    config['api']['username'] = try_read_config("Akhet", "username", "akhetuser")
+    config['api']['password'] = try_read_config("Akhet", "password", "akhetpass")
 
-http_username = try_read_config("Akhet", "username", "akhetuser")
-http_password = try_read_config("Akhet", "password", "akhetpass")
+    config['cuda'] = {}
+    config['cuda']['available'] =  try_read_config("Akhet", "cuda", "on") == "on"
+    cuda_devices_raw = try_read_config("Akhet", "cuda_devices", "")
+    config['cuda']['devices'] = []
+    if len(cuda_devices_raw)>0:
+        config['cuda']['devices'] = cuda_devices_raw.split(',')
 
-cuda =  try_read_config("Akhet", "cuda", "on") == "on"
-cuda_devices_raw = try_read_config("Akhet", "cuda_devices", "")
-cuda_devices = []
-if len(cuda_devices_raw)>0:
-    cuda_devices = cuda_devices_raw.split(',')
+    with htpasswd.Basic("/var/www/htpasswd") as userdb:
+        try:
+            userdb.add(config['api']['username'],config['api']['password'])
+        except htpasswd.basic.UserExists as e:
+            print(e)
 
-with htpasswd.Basic("/var/www/htpasswd") as userdb:
+    if (config['docker']['connection_type'] == "socket"):
+        print("Connecting through socket...")
+        c = Client(base_url="unix:/{}".format(config['docker']['socket_file']))
+    elif (config['docker']['connection_type'] == "tcp"):
+        print("Connecting through TCP...")
+        c = Client(base_url='tcp://{}:{}'.format(config['docker']['remote']['host'], config['docker']['remote']['port']))
+    else:
+        print("Connecting through HTTPS...")
+        # tls auth
+        tls_config = TLSConfig(client_cert=(config['docker']['remote']['ssl_cert_file'], config['docker']['remote']['ssl_key_file']), verify=config['docker']['remote']['ssl_ca'], ca_cert=config['docker']['remote']['ssl_ca'])
+        c = Client(base_url='https://{}:{}'.format(config['docker']['remote']['host'], config['docker']['remote']['port']), tls=tls_config)
     try:
-        userdb.add(http_username,http_password)
-    except htpasswd.basic.UserExists as e:
-        print(e)
+        c.info()
+    except:
+        print("Error during the connection to docker")
+        sys.exit(1)
 
-if (connection_method == "socket"):
-    print("Connecting through socket...")
-    c = Client(base_url="unix:/{}".format(socket_file))
-elif (connection_method == "tcp"):
-    print("Connecting through TCP...")
-    c = Client(base_url='tcp://{}:{}'.format(remote_host, remote_port))
-else:
-    print("Connecting through HTTPS...")
-    # tls auth
-    tls_config = TLSConfig(client_cert=(ssl_cert_file, ssl_key_file), verify=ssl_ca, ca_cert=ssl_ca)
-    c = Client(base_url='https://{}:{}'.format(remote_host, remote_port), tls=tls_config)
-try:
-    c.info()
-except:
-    print("Error during the connection to docker")
-    sys.exit(1)
+        print("...connected!")
+        # load finished
 
-print("...connected!")
-# load finished
+load_config()
 
 app = Flask(__name__)
 instanceRegistry = {}
@@ -203,15 +219,15 @@ def port_used(ports_list = []):
 
 def wsvnc_port_first_free(used_ports_list=[]):
     ports_list = port_used(used_ports_list)
-    try_port = wsvnc_port_start
+    try_port = config['ports']['wsvnc']['start']
     port_found = False
-    while try_port <= (wsvnc_port_end+1) and not port_found:
+    while try_port <= (config['ports']['wsvnc']['end']+1) and not port_found:
         if try_port in ports_list:
             try_port += 1
         else:
             port_found = True
 
-    if try_port <= wsvnc_port_end:
+    if try_port <= config['ports']['wsvnc']['end']:
         print("Port selected {}".format(try_port))
         return try_port
     else:
@@ -219,15 +235,15 @@ def wsvnc_port_first_free(used_ports_list=[]):
 
 def ws_port_first_free(used_ports_list=[]):
     ports_list = port_used(used_ports_list)
-    try_port = ws_port_start
+    try_port = config['ports']['ws']['start']
     port_found = False
-    while try_port <= (ws_port_end+1) and not port_found:
+    while try_port <= (config['ports']['ws']['end']+1) and not port_found:
         if try_port in ports_list:
             try_port += 1
         else:
             port_found = True
 
-    if try_port <= ws_port_end:
+    if try_port <= config['ports']['ws']['end']:
         print("Port selected {}".format(try_port))
         return try_port
     else:
@@ -235,15 +251,15 @@ def ws_port_first_free(used_ports_list=[]):
 
 def http_port_first_free(used_ports_list=[]):
     ports_list = port_used(used_ports_list)
-    try_port = http_port_start
+    try_port = config['ports']['http']['start']
     port_found = False
-    while try_port <= (http_port_end+1) and not port_found:
+    while try_port <= (config['ports']['http']['end']+1) and not port_found:
         if try_port in ports_list:
             try_port += 1
         else:
             port_found = True
 
-    if try_port <= http_port_end:
+    if try_port <= config['ports']['http']['end']:
         print("Port selected {}".format(try_port))
         return try_port
     else:
@@ -486,8 +502,8 @@ def do_create(token):
             string_placeholders = {}
             string_placeholders["username"] = confbunch.request_user
 
-            hostpath  = profiles["storage"][storage]['hostpath'].format(**string_placeholders)
-            guestpath = profiles["storage"][storage]['guestpath'].format(**string_placeholders)
+            hostpath  = config['profiles']["storage"][storage]['hostpath'].format(**string_placeholders)
+            guestpath = config['profiles']["storage"][storage]['guestpath'].format(**string_placeholders)
 
             volumes.append(hostpath)
             volumes_bind.append('%s:%s' % (hostpath, guestpath))
@@ -500,10 +516,11 @@ def do_create(token):
         environment_fw['defaultrule'] = None
 
         for k in environment_fw.keys():
-            if confbunch.request_network in profiles["network"].keys():
-                if profiles["network"][confbunch.request_network][k] != None:
-                    environment_fw[k] = ' '.join(profiles["network"][confbunch.request_network][k].split(","))
+            if confbunch.request_network in config['profiles']["network"].keys():
+                if config['profiles']["network"][confbunch.request_network][k] != None:
+                    environment_fw[k] = ' '.join(config['profiles']["network"][confbunch.request_network][k].split(","))
 
+        containerFirewall = None
         # create firewall docker to limit network
         try:
             fw_port_bindings = {6080:wsvnc_port}
@@ -535,134 +552,134 @@ def do_create(token):
             print("ERROR: Missing firewall image")
             instanceRegistry[token] = {"errorno":5, "error":"Missing firewall image"}
 
-        c.start(container=containerFirewall.get('Id'))
-        firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
+        if containerFirewall != None:
+            c.start(container=containerFirewall.get('Id'))
+            firewallname = c.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
 
-        environment = {}
-        environment['AKHETBASE_VNCPASS'] = get_random_string(8)
-        environment['AKHETBASE_USER'] = confbunch.request_user
-        environment['AKHETBASE_USER_LABEL'] = confbunch.request_user_label
-        environment['AKHETBASE_UID'] = confbunch.request_uid
-        environment['AKHETBASE_GIDs'] = " ".join(str(x) for x in confbunch.request_gids)
-        if confbunch.request_notimeout:
-            environment['AKHETBASE_NOTIMEOUT'] = '1'
-        if confbunch.request_shared:
-            environment['AKHETBASE_SHARED'] = '1'
+            environment = {}
+            environment['AKHETBASE_VNCPASS'] = get_random_string(8)
+            environment['AKHETBASE_USER'] = confbunch.request_user
+            environment['AKHETBASE_USER_LABEL'] = confbunch.request_user_label
+            environment['AKHETBASE_UID'] = confbunch.request_uid
+            environment['AKHETBASE_GIDs'] = " ".join(str(x) for x in confbunch.request_gids)
+            if confbunch.request_notimeout:
+                environment['AKHETBASE_NOTIMEOUT'] = '1'
+            if confbunch.request_shared:
+                environment['AKHETBASE_SHARED'] = '1'
 
-        for var in confbunch.request_env:
-            var_name = "AKHET_{}".format(var)
-            var_value = confbunch.request_env[var]
-            if var_name not in environment:
-                environment[var_name] = var_value
-        hostcfg_data={}
-        container_data = {}
+            for var in confbunch.request_env:
+                var_name = "AKHET_{}".format(var)
+                var_value = confbunch.request_env[var]
+                if var_name not in environment:
+                    environment[var_name] = var_value
+            hostcfg_data={}
+            container_data = {}
 
-        if confbunch.request_resource in profiles["resource"].keys():
-            if profiles["resource"][confbunch.request_resource]['ram'] != None:
-                hostcfg_data["mem_limit"] = profiles["resource"][confbunch.request_resource]['ram']
+            if confbunch.request_resource in config['profiles']["resource"].keys():
+                if config['profiles']["resource"][confbunch.request_resource]['ram'] != None:
+                    hostcfg_data["mem_limit"] = config['profiles']["resource"][confbunch.request_resource]['ram']
 
-        hostcfg_data["network_mode"]="container:" + firewallname
-        hostcfg_data["binds"] = volumes_bind
+            hostcfg_data["network_mode"]="container:" + firewallname
+            hostcfg_data["binds"] = volumes_bind
 
-        if(cuda):
-            if(confbunch.request_enable_cuda):
-                cuda_devs=[]
-                cuda_devs.append("/dev/nvidiactl")
-                cuda_devs.append("/dev/nvidia-uvm")
-                for d in cuda_devices:
-                    cuda_devs.append(d)
-                hostcfg_data["devices"] = cuda_devs
+            if(config['cuda']['available']):
+                if(confbunch.request_enable_cuda):
+                    cuda_devs=[]
+                    cuda_devs.append("/dev/nvidiactl")
+                    cuda_devs.append("/dev/nvidia-uvm")
+                    for d in config['cuda']['devices']:
+                        cuda_devs.append(d)
+                    hostcfg_data["devices"] = cuda_devs
 
-        hostcfg = c.create_host_config(**hostcfg_data)
-
-
-        container_data["name"] = "akhetinstance-" + str(wsvnc_port)
-        container_data["host_config"] = hostcfg
-        container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(confbunch.request_instance_ttl), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
-        container_data["detach"] = True
-        container_data["tty"] = True
-        container_data["image"] = confbunch.request_img
-        container_data["environment"] = environment
-        container_data["volumes"] = volumes
-
-        container = c.create_container( **container_data)
-        c.start(container=container.get('Id'))
-
-        # get node address
-        if swarm_cluster:
-            nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
-        else:
-            nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
-
-        open("/var/www/wsvnc/allowedports/"+str(wsvnc_port) , 'a').close()
-        open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
+            hostcfg = c.create_host_config(**hostcfg_data)
 
 
-        for binding in additional_ws_binding:
-            open("/var/www/ws/allowedports/"+str(additional_ws_binding[binding]) , 'a').close()
-            open("/var/www/ws/allowedhosts/"+nodeaddr  , 'a').close()
+            container_data["name"] = "akhetinstance-" + str(wsvnc_port)
+            container_data["host_config"] = hostcfg
+            container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(confbunch.request_instance_ttl), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
+            container_data["detach"] = True
+            container_data["tty"] = True
+            container_data["image"] = confbunch.request_img
+            container_data["environment"] = environment
+            container_data["volumes"] = volumes
 
-        for binding in additional_http_binding:
-            open("/var/www/http/allowedports/"+str(additional_http_binding[binding]) , 'a').close()
-            open("/var/www/http/allowedhosts/"+nodeaddr  , 'a').close()
+            container = c.create_container( **container_data)
+            c.start(container=container.get('Id'))
 
-        additional_ws_binding_paths = {}
-        for binding in additional_ws_binding:
-            additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
+            # get node address
+            if config['docker']['swarm']:
+                nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
+            else:
+                nodeaddr = c.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
-        additional_http_binding_paths = {}
-        for binding in additional_http_binding:
-            additional_http_binding_paths[binding] = "/http/%s/%s" % (nodeaddr, additional_http_binding[binding])
+            open("/var/www/wsvnc/allowedports/"+str(wsvnc_port) , 'a').close()
+            open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
 
-        data = {}
-        data["instance_node"] = nodeaddr # return node where akhet instance is running
-        data["instance_port"] = wsvnc_port # return node port where akhet instance is running
-        data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, wsvnc_port) #  return wsvnc port if ahket as proxy
-        data["instance_ws_paths"] = additional_ws_binding_paths
-        data["instance_http_paths"] = additional_http_binding_paths
-        data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
-        data["host_port"] = external_port # return akhet unssl port
-        data["host_ssl_port"] = external_ssl_port # return akhet ssl port
-        data["host_name"] = public_hostname # return akhet hostn
-        data["status"] = 1
-        data["docker_id"] = container.get('Id')
+            for binding in additional_ws_binding:
+                open("/var/www/ws/allowedports/"+str(additional_ws_binding[binding]) , 'a').close()
+                open("/var/www/ws/allowedhosts/"+nodeaddr  , 'a').close()
+
+            for binding in additional_http_binding:
+                open("/var/www/http/allowedports/"+str(additional_http_binding[binding]) , 'a').close()
+                open("/var/www/http/allowedhosts/"+nodeaddr  , 'a').close()
+
+            additional_ws_binding_paths = {}
+            for binding in additional_ws_binding:
+                additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
+
+            additional_http_binding_paths = {}
+            for binding in additional_http_binding:
+                additional_http_binding_paths[binding] = "/http/%s/%s" % (nodeaddr, additional_http_binding[binding])
+
+            data = {}
+            data["instance_node"] = nodeaddr # return node where akhet instance is running
+            data["instance_port"] = wsvnc_port # return node port where akhet instance is running
+            data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, wsvnc_port) #  return wsvnc port if ahket as proxy
+            data["instance_ws_paths"] = additional_ws_binding_paths
+            data["instance_http_paths"] = additional_http_binding_paths
+            data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
+            data["host_port"] = config['external']['port'] # return akhet unssl port
+            data["host_ssl_port"] = config['external']['port_ssl'] # return akhet ssl port
+            data["host_name"] = config['external']['hostname'] # return akhet hostn
+            data["status"] = 1
+            data["docker_id"] = container.get('Id')
 
 
-        print("Wait for VNC server")
-        wait_for_vnc_server = True
-        while wait_for_vnc_server:
-            wait_vnc_server_exec = c.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
-            wait_vnc_server_exec_output = c.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
-            wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
-            wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
-            sleep(0.01)
+            print("Wait for VNC server")
+            wait_for_vnc_server = True
+            while wait_for_vnc_server:
+                wait_vnc_server_exec = c.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
+                wait_vnc_server_exec_output = c.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
+                wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
+                wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
+                sleep(0.01)
 
-        instanceRegistry[token] = data
-        locker.release()
+            instanceRegistry[token] = data
+            locker.release()
 
-        # create a json file inside the docker to pass the akhet instance info inside the docker itself
-        tmp_dir_name="/tmp/{}".format(token)
-        tar_name="{}/akhet.tar".format(tmp_dir_name);
-        info_file_name="{}/akhet.json".format(tmp_dir_name)
-        os.mkdir(tmp_dir_name)
-        text_file = open(info_file_name, "w")
-        text_file.write(json.dumps(data))
-        text_file.close()
-        with tarfile.open(tar_name, "w") as tar:
-            tar.add(info_file_name, filter=tarfile_info_akhet_json)
-        c.put_archive(container=container.get('Id'),path="/",data=open(tar_name, "rb").read())
-        os.remove(info_file_name)
-        os.remove(tar_name)
-        os.rmdir(tmp_dir_name)
+            # create a json file inside the docker to pass the akhet instance info inside the docker itself
+            tmp_dir_name="/tmp/{}".format(token)
+            tar_name="{}/akhet.tar".format(tmp_dir_name);
+            info_file_name="{}/akhet.json".format(tmp_dir_name)
+            os.mkdir(tmp_dir_name)
+            text_file = open(info_file_name, "w")
+            text_file.write(json.dumps(data))
+            text_file.close()
+            with tarfile.open(tar_name, "w") as tar:
+                tar.add(info_file_name, filter=tarfile_info_akhet_json)
+            c.put_archive(container=container.get('Id'),path="/",data=open(tar_name, "rb").read())
+            os.remove(info_file_name)
+            os.remove(tar_name)
+            os.rmdir(tmp_dir_name)
 
-        print("Waiting for the d)eath of ", container.get('Id'))
+            print("Waiting for the d)eath of ", container.get('Id'))
 
-        c.wait(container.get('Id'))
-        print("Death of ", container.get('Id'))
+            c.wait(container.get('Id'))
+            print("Death of ", container.get('Id'))
 
-        locker.acquire()
-        del instanceRegistry[token]
-        locker.release()
+            locker.acquire()
+            del instanceRegistry[token]
+            locker.release()
 
 @app.route('/0.8/instance-resolution', methods=['GET'])
 def do_0_8_instance_resolution_get():
@@ -718,9 +735,9 @@ def tarfile_info_akhet_json(tarinfo):
 @app.route('/0.8/hostinfo')
 def do_0_8_hostinfo():
     data = {}
-    data["host_port"] = external_port # return akhet unssl port
-    data["host_ssl_port"] = external_ssl_port # return akhet ssl port
-    data["host_name"] = public_hostname # return akhet hostn
+    data["host_port"] = config['external']['port'] # return akhet unssl port
+    data["host_ssl_port"] = config['external']['port_ssl'] # return akhet ssl port
+    data["host_name"] = config['external']['hostname'] # return akhet hostn
 
     return resp_json(data)
 
