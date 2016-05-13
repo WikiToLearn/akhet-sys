@@ -6,6 +6,7 @@ sys.path.insert(0, r'/opt/akhet-libs')
 
 from loadconfig import load_config
 from dockerconnect import docker_connect
+import proxysecurity
 
 import tarfile
 from flask import Flask
@@ -463,7 +464,6 @@ def do_create(token):
 
             hostcfg = docker_client.create_host_config(**hostcfg_data)
 
-
             container_data["name"] = "akhetinstance-" + str(wsvnc_port)
             container_data["host_config"] = hostcfg
             container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(instanceRegistry[token]['request_instance_ttl']), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
@@ -482,16 +482,9 @@ def do_create(token):
             else:
                 nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
-            open("/var/www/wsvnc/allowedports/"+str(wsvnc_port) , 'a').close()
-            open("/var/www/wsvnc/allowedhosts/"+nodeaddr  , 'a').close()
-
-            for binding in additional_ws_binding:
-                open("/var/www/ws/allowedports/"+str(additional_ws_binding[binding]) , 'a').close()
-                open("/var/www/ws/allowedhosts/"+nodeaddr  , 'a').close()
-
-            for binding in additional_http_binding:
-                open("/var/www/http/allowedports/"+str(additional_http_binding[binding]) , 'a').close()
-                open("/var/www/http/allowedhosts/"+nodeaddr  , 'a').close()
+            proxysecurity.set_wsvnc(True,nodeaddr,wsvnc_port)
+            proxysecurity.set_ws(True,nodeaddr,additional_ws_binding.keys())
+            proxysecurity.set_http(True,nodeaddr,additional_http_binding.keys())
 
             additional_ws_binding_paths = {}
             for binding in additional_ws_binding:
@@ -546,6 +539,10 @@ def do_create(token):
 
             docker_client.wait(container.get('Id'))
             print("Death of ", container.get('Id'))
+
+            proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
+            proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())
+            proxysecurity.set_http(False,nodeaddr,additional_http_binding.keys())
 
             locker.acquire()
             del instanceRegistry[token]
