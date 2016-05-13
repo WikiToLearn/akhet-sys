@@ -20,7 +20,7 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  rm server.csr
 fi
 
-if -e /var/run/docker.sock ; then # if there is the socket file for docker the user must have the right permissoion
+if test -e /var/run/docker.sock ; then # if there is the socket file for docker the user must have the right permissoion
   GROUP_ID=$(stat -c %g /var/run/docker.sock)
 else
   GROUP_ID=1000
