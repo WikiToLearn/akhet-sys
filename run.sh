@@ -1,7 +1,5 @@
 #!/bin/bash
 
-touch /var/www/htpasswd
-
 if [ -f /certs/akhet.crt ] ; then
  echo "Copy /certs/akhet.crt"
  cp /certs/akhet.crt /etc/ssl/certs/nginx.crt
@@ -22,24 +20,32 @@ if [ ! -f /etc/ssl/private/nginx.key ] ; then
  rm server.csr
 fi
 
-rm -Rf /var/www/wsvnc/
-mkdir /var/www/wsvnc/
-mkdir /var/www/wsvnc/allowedports/
-mkdir /var/www/wsvnc/allowedhosts/
+if -e /var/run/docker.sock ; then # if there is the socket file for docker the user must have the right permissoion
+  GROUP_ID=$(stat -c %g /var/run/docker.sock)
+else
+  GROUP_ID=1000
+fi
 
-rm -Rf /var/www/ws/
-mkdir /var/www/ws/
-mkdir /var/www/ws/allowedports/
-mkdir /var/www/ws/allowedhosts/
+if ! getent group $GROUP_ID &> /dev/null ; then
+  groupadd -g $GROUP_ID dockergroup
+fi
+useradd -d /bin -r -s /bin/bash -u $GROUP_ID -g $GROUP_ID -G www-data -o akhetuser
 
-rm -Rf /var/www/http/
-mkdir /var/www/http/
-mkdir /var/www/http/allowedports/
-mkdir /var/www/http/allowedhosts/
+mkdir /var/run/akhet/
+
+touch /var/run/akhet/htpasswd
+
+mkdir /var/run/akhet/{wsvnc,ws,http}/
+mkdir /var/run/akhet/{wsvnc,ws,http}/{allowedports,allowedhosts}/
+
+chmod 750 /var/run/akhet/ -R
+chown akhetuser:www-data /var/run/akhet/ -R
+
+chown akhetuser:www-data /var/log/akhet/ -R
 
 echo resolver $(awk 'BEGIN{ORS=" "} $1=="nameserver" {print $2}' /etc/resolv.conf) ";" > /etc/nginx/resolvers.conf
 /etc/init.d/nginx start
 
 cron
 
-exec python3 /opt/akhet.py
+exec su akhetuser -c /opt/akhet.py

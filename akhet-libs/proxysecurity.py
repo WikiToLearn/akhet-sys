@@ -1,14 +1,14 @@
-# -*- coding: utf-8 -*-
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import os
 
 def allow_host_port(service,host,port):
-    filenames = ["/var/www/{}/allowedports/{}".format(service, port),"/var/www/{}/allowedhosts/{}".format(service, host)]
+    filenames = ["/var/run/akhet/{}/allowedports/{}".format(service, port),"/var/run/akhet/{}/allowedhosts/{}".format(service, host)]
     for filename in filenames:
         open(filename , 'a').close()
 
 def disallow_host_port(service,host,port):
-    filenames = ["/var/www/{}/allowedports/{}".format(service, port),"/var/www/{}/allowedhosts/{}".format(service, host)]
+    filenames = ["/var/run/akhet/{}/allowedports/{}".format(service, port),"/var/run/akhet/{}/allowedhosts/{}".format(service, host)]
     for filename in filenames:
         if os.path.exists(filename):
             os.remove(filename)

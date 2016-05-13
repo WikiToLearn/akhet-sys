@@ -35,6 +35,8 @@ ADD ./akhet.ini /etc/akhet.ini
 ADD ./run.sh /run.sh
 RUN chmod +x /run.sh
 
+RUN mkdir /var/log/akhet/
+
 CMD ["/run.sh"]
 
 EXPOSE 80 443

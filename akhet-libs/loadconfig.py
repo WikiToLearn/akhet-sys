@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import configparser
 import htpasswd
 
@@ -102,7 +102,7 @@ def load_config():
     if len(cuda_devices_raw)>0:
         config['cuda']['devices'] = cuda_devices_raw.split(',')
 
-    with htpasswd.Basic("/var/www/htpasswd") as userdb:
+    with htpasswd.Basic("/var/run/akhet/htpasswd") as userdb:
         try:
             userdb.add(config['api']['username'],config['api']['password'])
         except htpasswd.basic.UserExists as e:

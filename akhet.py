@@ -1,18 +1,18 @@
-# -*- coding: utf-8 -*-
 #!/usr/bin/env python3
-import sys
-import os
-sys.path.insert(0, r'/opt/akhet-libs')
+# -*- coding: utf-8 -*-
+import sys, os
+sys.path.append(os.path.join(os.path.dirname(__file__), "akhet-libs"))
 
+# our own modules
 from loadconfig import load_config
 from dockerconnect import docker_connect
 import proxysecurity
 
+#usefull stuff
+from flask import Flask, current_app, jsonify, request
+from werkzeug.contrib.fixers import ProxyFix
+
 import tarfile
-from flask import Flask
-from flask import current_app
-from flask import jsonify
-from flask import request
 import random
 import re
 import string
@@ -22,11 +22,15 @@ import json
 from time import sleep
 import datetime
 import dateutil.parser
+import logging
+from logging.handlers import RotatingFileHandler
 
 config = load_config()
 docker_client = docker_connect(config)
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app)
+
 instanceRegistry = {}
 
 def resp_json(data):
@@ -535,10 +539,10 @@ def do_create(token):
             os.remove(tar_name)
             os.rmdir(tmp_dir_name)
 
-            print("Waiting for the d)eath of ", container.get('Id'))
+            print("Waiting for the d)eath of {}".format(container.get('Id')))
 
             docker_client.wait(container.get('Id'))
-            print("Death of ", container.get('Id'))
+            print("Death of {}".format(container.get('Id')))
 
             proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
             proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())
@@ -633,4 +637,9 @@ def do_0_8_imageslocal():
     return resp_json(data)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.debug = True
+    file_handler = RotatingFileHandler('/var/log/akhet/akhet.log', maxBytes=1024 * 1024 * 100, backupCount=20)
+    file_handler.setLevel(logging.ERROR)
+    app.logger.setLevel(logging.ERROR)
+    app.logger.addHandler(file_handler)
+    app.run()
