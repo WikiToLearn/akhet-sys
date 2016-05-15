@@ -455,16 +455,29 @@ def do_create(token):
                     hostcfg_data["mem_limit"] = config['profiles']["resource"][instanceRegistry[token]['request_resource']]['ram']
 
             hostcfg_data["network_mode"]="container:" + firewallname
-            hostcfg_data["binds"] = volumes_bind
 
-            if(config['cuda']['available']):
-                if(instanceRegistry[token]['request_enable_cuda']):
+
+            if(instanceRegistry[token]['request_enable_cuda']):
+                if(config['cuda']['available']):
                     cuda_devs=[]
                     cuda_devs.append("/dev/nvidiactl")
                     cuda_devs.append("/dev/nvidia-uvm")
                     for d in config['cuda']['devices']:
                         cuda_devs.append(d)
                     hostcfg_data["devices"] = cuda_devs
+
+                    volumes_info = docker_client.volumes()
+                    volumes=volumes_info['Volumes']
+                    cuda_volume = None
+                    for volume in volumes:
+                        if volume['Driver'] == "nvidia-docker":
+                            cuda_volume = volume['Name']
+
+                    volumes_bind.append('%s:/usr/local/nvidia' % cuda_volume)
+                else:
+                    instanceRegistry[token] = {"errorno":20, "error":"This host has not CUDA support"}
+
+            hostcfg_data["binds"] = volumes_bind
 
             hostcfg = docker_client.create_host_config(**hostcfg_data)
 

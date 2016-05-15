@@ -23,6 +23,20 @@ def docker_connect(config):
         print("Error during the connection to docker")
         sys.exit(1)
 
+    volumes_info = c.volumes()
+    volumes=volumes_info['Volumes']
+    volumes_cuda = []
+    for volume in volumes:
+        if volume['Driver'] == "nvidia-docker":
+            volumes_cuda.append(volume)
+
+    if config['cuda']['available']:
+        if len(volumes_cuda) == 1:
+            print("CUDA volume found")
+        else:
+            print("CUDA volume not found")
+            sys.exit(1)
+
     print("...connected!")
     # load finished
     return c
