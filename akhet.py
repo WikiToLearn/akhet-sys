@@ -381,7 +381,7 @@ def do_create(token):
             guestpath = config['profiles']["storage"][storage]['guestpath'].format(**string_placeholders)
 
             volumes.append(hostpath)
-            volumes_bind.append('%s:%s' % (hostpath, guestpath))
+            volumes_bind.append('%s:%s' % (guestpath,hostpath))
 
         environment_fw = {}
         environment_fw['blacklistdest'] = None
@@ -457,7 +457,7 @@ def do_create(token):
             hostcfg_data["network_mode"]="container:" + firewallname
 
 
-            if(instanceRegistry[token]['request_enable_cuda']):
+            if(instanceRegistry[token]['request_enable_cuda']) or True:
                 if(config['cuda']['available']):
                     cuda_devs=[]
                     cuda_devs.append("/dev/nvidiactl")
@@ -467,9 +467,9 @@ def do_create(token):
                     hostcfg_data["devices"] = cuda_devs
 
                     volumes_info = docker_client.volumes()
-                    volumes=volumes_info['Volumes']
+                    volumes_cuda_search=volumes_info['Volumes']
                     cuda_volume = None
-                    for volume in volumes:
+                    for volume in volumes_cuda_search:
                         if volume['Driver'] == "nvidia-docker":
                             cuda_volume = volume['Name']
 
@@ -477,93 +477,94 @@ def do_create(token):
                 else:
                     instanceRegistry[token] = {"errorno":20, "error":"This host has not CUDA support"}
 
-            hostcfg_data["binds"] = volumes_bind
+            if "errorno" not in instanceRegistry[token]:
+                hostcfg_data["binds"] = volumes_bind
 
-            hostcfg = docker_client.create_host_config(**hostcfg_data)
+                hostcfg = docker_client.create_host_config(**hostcfg_data)
 
-            container_data["name"] = "akhetinstance-" + str(wsvnc_port)
-            container_data["host_config"] = hostcfg
-            container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(instanceRegistry[token]['request_instance_ttl']), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
-            container_data["detach"] = True
-            container_data["tty"] = True
-            container_data["image"] = instanceRegistry[token]['request_img']
-            container_data["environment"] = environment
-            container_data["volumes"] = volumes
+                container_data["name"] = "akhetinstance-" + str(wsvnc_port)
+                container_data["host_config"] = hostcfg
+                container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(instanceRegistry[token]['request_instance_ttl']), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
+                container_data["detach"] = True
+                container_data["tty"] = True
+                container_data["image"] = instanceRegistry[token]['request_img']
+                container_data["environment"] = environment
+                container_data["volumes"] = volumes
 
-            container = docker_client.create_container( **container_data)
-            docker_client.start(container=container.get('Id'))
+                container = docker_client.create_container( **container_data)
+                docker_client.start(container=container.get('Id'))
 
-            # get node address
-            if config['docker']['swarm']:
-                nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
-            else:
-                nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+                # get node address
+                if config['docker']['swarm']:
+                    nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
+                else:
+                    nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
-            proxysecurity.set_wsvnc(True,nodeaddr,wsvnc_port)
-            proxysecurity.set_ws(True,nodeaddr,additional_ws_binding.keys())
-            proxysecurity.set_http(True,nodeaddr,additional_http_binding.keys())
+                proxysecurity.set_wsvnc(True,nodeaddr,wsvnc_port)
+                proxysecurity.set_ws(True,nodeaddr,additional_ws_binding.keys())
+                proxysecurity.set_http(True,nodeaddr,additional_http_binding.keys())
 
-            additional_ws_binding_paths = {}
-            for binding in additional_ws_binding:
-                additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
+                additional_ws_binding_paths = {}
+                for binding in additional_ws_binding:
+                    additional_ws_binding_paths[binding] = "/ws/%s/%s" % (nodeaddr, additional_ws_binding[binding])
 
-            additional_http_binding_paths = {}
-            for binding in additional_http_binding:
-                additional_http_binding_paths[binding] = "/http/%s/%s" % (nodeaddr, additional_http_binding[binding])
+                additional_http_binding_paths = {}
+                for binding in additional_http_binding:
+                    additional_http_binding_paths[binding] = "/http/%s/%s" % (nodeaddr, additional_http_binding[binding])
 
-            data = {}
-            data["instance_node"] = nodeaddr # return node where akhet instance is running
-            data["instance_port"] = wsvnc_port # return node port where akhet instance is running
-            data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, wsvnc_port) #  return wsvnc port if ahket as proxy
-            data["instance_ws_paths"] = additional_ws_binding_paths
-            data["instance_http_paths"] = additional_http_binding_paths
-            data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
-            data["host_port"] = config['external']['port'] # return akhet unssl port
-            data["host_ssl_port"] = config['external']['port_ssl'] # return akhet ssl port
-            data["host_name"] = config['external']['hostname'] # return akhet hostn
-            data["status"] = 1
-            data["docker_id"] = container.get('Id')
+                data = {}
+                data["instance_node"] = nodeaddr # return node where akhet instance is running
+                data["instance_port"] = wsvnc_port # return node port where akhet instance is running
+                data["instance_path"] = "/wsvnc/%s/%s" % (nodeaddr, wsvnc_port) #  return wsvnc port if ahket as proxy
+                data["instance_ws_paths"] = additional_ws_binding_paths
+                data["instance_http_paths"] = additional_http_binding_paths
+                data["instance_password"] = environment['AKHETBASE_VNCPASS']  # return password for vnc instance
+                data["host_port"] = config['external']['port'] # return akhet unssl port
+                data["host_ssl_port"] = config['external']['port_ssl'] # return akhet ssl port
+                data["host_name"] = config['external']['hostname'] # return akhet hostn
+                data["status"] = 1
+                data["docker_id"] = container.get('Id')
 
 
-            print("Wait for VNC server")
-            wait_for_vnc_server = True
-            while wait_for_vnc_server:
-                wait_vnc_server_exec = docker_client.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
-                wait_vnc_server_exec_output = docker_client.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
-                wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
-                wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
-                sleep(0.01)
+                print("Wait for VNC server")
+                wait_for_vnc_server = True
+                while wait_for_vnc_server:
+                    wait_vnc_server_exec = docker_client.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
+                    wait_vnc_server_exec_output = docker_client.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
+                    wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
+                    wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
+                    sleep(0.01)
 
-            instanceRegistry[token] = data
-            locker.release()
+                instanceRegistry[token] = data
+                locker.release()
 
-            # create a json file inside the docker to pass the akhet instance info inside the docker itself
-            tmp_dir_name="/tmp/{}".format(token)
-            tar_name="{}/akhet.tar".format(tmp_dir_name);
-            info_file_name="{}/akhet.json".format(tmp_dir_name)
-            os.mkdir(tmp_dir_name)
-            text_file = open(info_file_name, "w")
-            text_file.write(json.dumps(data))
-            text_file.close()
-            with tarfile.open(tar_name, "w") as tar:
-                tar.add(info_file_name, filter=tarfile_info_akhet_json)
-            docker_client.put_archive(container=container.get('Id'),path="/",data=open(tar_name, "rb").read())
-            os.remove(info_file_name)
-            os.remove(tar_name)
-            os.rmdir(tmp_dir_name)
+                # create a json file inside the docker to pass the akhet instance info inside the docker itself
+                tmp_dir_name="/tmp/{}".format(token)
+                tar_name="{}/akhet.tar".format(tmp_dir_name);
+                info_file_name="{}/akhet.json".format(tmp_dir_name)
+                os.mkdir(tmp_dir_name)
+                text_file = open(info_file_name, "w")
+                text_file.write(json.dumps(data))
+                text_file.close()
+                with tarfile.open(tar_name, "w") as tar:
+                    tar.add(info_file_name, filter=tarfile_info_akhet_json)
+                docker_client.put_archive(container=container.get('Id'),path="/",data=open(tar_name, "rb").read())
+                os.remove(info_file_name)
+                os.remove(tar_name)
+                os.rmdir(tmp_dir_name)
 
-            print("Waiting for the d)eath of {}".format(container.get('Id')))
+                print("Waiting for the d)eath of {}".format(container.get('Id')))
 
-            docker_client.wait(container.get('Id'))
-            print("Death of {}".format(container.get('Id')))
+                docker_client.wait(container.get('Id'))
+                print("Death of {}".format(container.get('Id')))
 
-            proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
-            proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())
-            proxysecurity.set_http(False,nodeaddr,additional_http_binding.keys())
+                proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
+                proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())
+                proxysecurity.set_http(False,nodeaddr,additional_http_binding.keys())
 
-            locker.acquire()
-            del instanceRegistry[token]
-            locker.release()
+                locker.acquire()
+                del instanceRegistry[token]
+                locker.release()
 
 @app.route('/0.8/instance-resolution', methods=['GET'])
 def do_0_8_instance_resolution_get():
