@@ -278,12 +278,12 @@ def do_0_8_create():
         instance_data['request_env'] = {}
 
     if 'notimeout' in request.json:
-        instance_data['request_notimeout'] = validate(request.json['notimeout'])
+        instance_data['request_notimeout'] = request.json['notimeout']
     else:
         instance_data['request_notimeout'] = False
 
     if 'shared' in request.json:
-        instance_data['request_shared'] = validate(request.json['shared'])
+        instance_data['request_shared'] = request.json['shared']
     else:
         instance_data['request_shared'] = False
 
