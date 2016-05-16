@@ -169,13 +169,11 @@ def do_0_8_gc():
 
 @app.route('/0.8/instance', methods=['GET'])
 def do_poll():
-    if request.headers['Content-Type'] != 'application/json':
-        return({"errorno": 7, "error": "You have to send application/json"})
+    if request.args.get('token') == None:
+        return resp_json({"errorno": 18, "error": "Missing token"})
 
-    if 'token' not in request.json:
-        return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
+    token = request.args.get('token')
 
-    token = validate(request.json['token'])
     if (token):
         if token in instanceRegistry:
             return resp_json(instanceRegistry[token])
@@ -563,12 +561,11 @@ def do_create(token):
 
 @app.route('/0.8/instance-resolution', methods=['GET'])
 def do_0_8_instance_resolution_get():
-    if request.headers['Content-Type'] != 'application/json':
-        return({"errorno": 7, "error": "You have to send application/json"})
-
-    if 'token' not in request.json:
+    if request.args.get('token') == None:
         return resp_json({"errorno": 18, "error": "Missing token"})
-    token = request.json['token']
+
+    token = request.args.get('token')
+
     instance_data = instanceRegistry[token]
 
     vnc_server_exec = docker_client.exec_create(container=instance_data['docker_id'],cmd="/usr/local/bin/akhet-resolutions.sh get")
