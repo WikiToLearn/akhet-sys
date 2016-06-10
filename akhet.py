@@ -182,43 +182,6 @@ def do_poll():
     else:
         return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
 
-###
-# Short API doc
-#
-# Arguments to "create" (mandatory)
-# * user
-#     a string uniquely identifying the user. Max 32 char
-# * image
-#     the name of the docker image to start. must come from a trusted vendor
-#
-# Arguments to "create" (optional):
-# * user_label
-#     User display name
-# * network
-#     the network profile to associate to the session instanciated (default: default)
-# * resource
-#     the physical resources profile to associate to the session instanciated (default: default)
-# * uid
-#     numerical id to assign as UID to the user created (default: 1000)
-# * gid
-#     list of numerical ids to assign to the user in these fashions
-#     we have to accept [1, 2, 3, ...]
-# * storages
-#      list of storages to mount in host
-# * env
-#      list of environmental variables to set to the guest
-# * notimeout
-#      true/false to allow/disallow forever connections
-# * shared
-#      true/false to allow/disallow instance to be shared
-# * additional_ws
-#      list [80,443] of port for additional websockets
-# * additional_http
-#      list [80,443] of port for additional http
-# * instance_ttl
-#      seconds for the akhet instance, 0 is no limit
-###
-
 @app.route('/0.8/instance', methods=['POST'])
 def do_0_8_create():
     instance_data={}
@@ -373,8 +336,8 @@ def do_create(token):
                 hostpath  = config['profiles']["storage"][storage]['hostpath'].format(**string_placeholders)
                 guestpath = config['profiles']["storage"][storage]['guestpath'].format(**string_placeholders)
 
-                volumes.append(hostpath)
-                volumes_bind.append('%s:%s' % (guestpath,hostpath))
+                volumes.append(guestpath)
+                volumes_bind.append('%s:%s' % (hostpath,guestpath))
 
             environment_fw = {}
             environment_fw['blacklistdest'] = None

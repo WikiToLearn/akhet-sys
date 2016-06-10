@@ -3,6 +3,7 @@
 from docker import Client
 from docker.client import Client
 from docker.tls import TLSConfig
+import sys
 
 def docker_connect(config):
     c = None
@@ -26,9 +27,10 @@ def docker_connect(config):
     volumes_info = c.volumes()
     volumes=volumes_info['Volumes']
     volumes_cuda = []
-    for volume in volumes:
-        if volume['Driver'] == "nvidia-docker":
-            volumes_cuda.append(volume)
+    if volumes != None:
+        for volume in volumes:
+            if volume['Driver'] == "nvidia-docker":
+                volumes_cuda.append(volume)
 
     if config['cuda']['available']:
         if len(volumes_cuda) == 1:
