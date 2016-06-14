@@ -96,7 +96,7 @@ def load_config():
     config['api']['password'] = try_read_config("Akhet", "password", "akhetpass")
 
     config['cuda'] = {}
-    config['cuda']['available'] =  try_read_config("Akhet", "cuda", "on") == "on"
+    config['cuda']['available'] =  try_read_config("Akhet", "cuda", "off") == "on"
     cuda_devices_raw = try_read_config("Akhet", "cuda_devices", "")
     config['cuda']['devices'] = []
     if len(cuda_devices_raw)>0:
