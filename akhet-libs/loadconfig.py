@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import configparser
 import htpasswd
+from pprint import pprint
 
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
@@ -36,12 +37,13 @@ profile_options['resource'] = ['ram']
 profile_options['storage'] = ['hostpath','guestpath']
 
 akhetconfig = configparser.ConfigParser()
-akhetconfig.read("/etc/akhet.ini")
 
 config = {}
 def load_config():
     global config
     global c
+    global akhetconfig
+    akhetconfig.read("/etc/akhet.ini")
     config = {}
 
     config['profiles'] = {}
@@ -107,5 +109,7 @@ def load_config():
             userdb.add(config['api']['username'],config['api']['password'])
         except htpasswd.basic.UserExists as e:
             print(e)
+
+    pprint(config)
 
     return config

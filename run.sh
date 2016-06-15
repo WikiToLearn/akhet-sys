@@ -47,5 +47,5 @@ echo resolver $(awk 'BEGIN{ORS=" "} $1=="nameserver" {print $2}' /etc/resolv.con
 /etc/init.d/nginx start
 
 cron
-
+chmod 755 /etc/akhet.ini
 exec su akhetuser -c /opt/akhet.py
