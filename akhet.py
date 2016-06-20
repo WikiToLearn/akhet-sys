@@ -509,7 +509,7 @@ def do_create(token):
                     os.remove(tar_name)
                     os.rmdir(tmp_dir_name)
 
-                    print("Waiting for the d)eath of {}".format(container.get('Id')))
+                    print("Waiting for the death of {}".format(container.get('Id')))
 
                     docker_client.wait(container.get('Id'))
                     print("Death of {}".format(container.get('Id')))

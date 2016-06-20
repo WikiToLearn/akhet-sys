@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 import configparser
 import htpasswd
-from pprint import pprint
+import os
+import os.path
 
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
@@ -94,8 +95,9 @@ def load_config():
     config['docker']['swarm'] = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
 
     config['api'] = {}
-    config['api']['username'] = try_read_config("Akhet", "username", "akhetuser")
-    config['api']['password'] = try_read_config("Akhet", "password", "akhetpass")
+    config['api']['username'] = try_read_config("Akhet", "api_username", "akhetuser")
+    config['api']['password'] = try_read_config("Akhet", "api_password", "akhetpass")
+    config['api']['whitelist'] = try_read_config("Akhet", "api_whitelist_ip", None)
 
     config['cuda'] = {}
     config['cuda']['available'] =  try_read_config("Akhet", "cuda", "off") == "on"
@@ -104,12 +106,18 @@ def load_config():
     if len(cuda_devices_raw)>0:
         config['cuda']['devices'] = cuda_devices_raw.split(',')
 
+    acl_file = '/var/run/akhet/allowed-ip-api.txt'
+    if os.path.isfile(acl_file):
+        os.remove(acl_file)
+    if config['api']['whitelist'] != None:
+        target = open(acl_file, 'w')
+        for row in config['api']['whitelist'].split(","):
+            target.write("{}\n".format(row))
+        target.close()
     with htpasswd.Basic("/var/run/akhet/htpasswd") as userdb:
         try:
             userdb.add(config['api']['username'],config['api']['password'])
         except htpasswd.basic.UserExists as e:
             print(e)
-
-    pprint(config)
 
     return config

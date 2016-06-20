@@ -29,7 +29,9 @@ server {
 
  location ~* ^/(0\.8)/ {
   auth_basic "Administrator Login";
+
   auth_basic_user_file /var/run/akhet/htpasswd;
+  access_by_lua_file /opt/auth.lua;
 
   proxy_pass http://127.0.0.1:5000;
   add_header 'Access-Control-Allow-Origin' '*';
