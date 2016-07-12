@@ -4,6 +4,7 @@ import configparser
 import htpasswd
 import os
 import os.path
+from akhet_logger import akhet_logger
 
 def try_read_config(section, option, default_argument=None):
     if akhetconfig.has_option(section, option):
@@ -11,7 +12,7 @@ def try_read_config(section, option, default_argument=None):
     else:
         return default_argument
 
-def read_group_config(profile_list, section_prefix):
+def read_group_config(profile_list, section_prefix,default_required=True):
     profiles_data = {}
     for profile in profile_list:
         profile_section = "{}:{}".format(section_prefix, profile)
@@ -21,15 +22,16 @@ def read_group_config(profile_list, section_prefix):
                 for option in profile_options[section_prefix]:
                     profiles_data[profile][option] = try_read_config(profile_section, option)
             else:
-                print("Missing ", profile, " profile for ", section_prefix)
+                akhet_logger("Missing {} profile for {}".format(profile, section_prefix))
         except:
-            print("Error loading ", section_prefix, ":", profile, " profile")
+            akhet_logger("Error loading {}:{} profile".format(section_prefix,profile))
 
-    if 'default' not in profile_list:
-        print("Missing ", section_prefix, " default profile")
-        profiles_data['default'] = {}
-        for option in profile_options[section_prefix]:
-            profiles_data['default'][option] = None
+    if default_required:
+        if 'default' not in profile_list:
+            akhet_logger("Missing {} default profile".format(section_prefix))
+            profiles_data['default'] = {}
+            for option in profile_options[section_prefix]:
+                profiles_data['default'][option] = None
     return profiles_data
 
 profile_options = {}
@@ -118,6 +120,6 @@ def load_config():
         try:
             userdb.add(config['api']['username'],config['api']['password'])
         except htpasswd.basic.UserExists as e:
-            print(e)
+            akhet_logger(e)
 
     return config

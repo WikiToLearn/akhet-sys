@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ ! -f /etc/akhet.ini ] ; then
+  echo "Missing /etc/akhet.ini file"
+  exit 1
+fi
 if [ -f /certs/akhet.crt ] ; then
  echo "Copy /certs/akhet.crt"
  cp /certs/akhet.crt /etc/ssl/certs/nginx.crt
@@ -40,7 +44,6 @@ mkdir /var/run/akhet/{wsvnc,ws,http}/{allowedports,allowedhosts}/
 
 chmod 750 /var/run/akhet/ -R
 chown akhetuser:www-data /var/run/akhet/ -R
-
 chown akhetuser:www-data /var/log/akhet/ -R
 
 echo resolver $(awk 'BEGIN{ORS=" "} $1=="nameserver" {print $2}' /etc/resolv.conf) ";" > /etc/nginx/resolvers.conf

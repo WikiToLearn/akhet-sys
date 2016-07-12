@@ -25,6 +25,8 @@ import dateutil.parser
 import logging
 from logging.handlers import RotatingFileHandler
 
+from akhet_logger import akhet_logger
+
 config = load_config()
 docker_client = docker_connect(config)
 
@@ -65,8 +67,7 @@ def validate(test_str):
         return ""
 
 def port_used(ports_list = []):
-    print("Used ports: ",)
-    print(ports_list)
+    akhet_logger("Used ports: {}".format(ports_list))
     list_containers = docker_client.containers(all=True, filters={"label":"akhetinstance=yes"})#, quiet=True)
     for container in list_containers:
         try:
@@ -104,7 +105,7 @@ def wsvnc_port_first_free(used_ports_list=[]):
             port_found = True
 
     if try_port <= config['ports']['wsvnc']['end']:
-        print("Port selected {}".format(try_port))
+        akhet_logger("Port selected {}".format(try_port))
         return try_port
     else:
         return None
@@ -120,7 +121,7 @@ def ws_port_first_free(used_ports_list=[]):
             port_found = True
 
     if try_port <= config['ports']['ws']['end']:
-        print("Port selected {}".format(try_port))
+        akhet_logger("Port selected {}".format(try_port))
         return try_port
     else:
         return None
@@ -136,7 +137,7 @@ def http_port_first_free(used_ports_list=[]):
             port_found = True
 
     if try_port <= config['ports']['http']['end']:
-        print("Port selected {}".format(try_port))
+        akhet_logger("Port selected {}".format(try_port))
         return try_port
     else:
         return None
@@ -159,7 +160,7 @@ def do_0_8_gc():
                     docker_client.kill(container=d['Id'])
 
     for d in docker_client.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
-        print("Removing " + str(d["Image"]) + " " + str(d["Labels"]["akhetUsedVNCPort"]))
+        akhet_logger("Removing " + str(d["Image"]) + " " + str(d["Labels"]["akhetUsedVNCPort"]))
         try:
             docker_client.remove_container(d)
         except Exception as e:
@@ -380,7 +381,7 @@ def do_create(token):
                 container_fw_data["environment"] = environment_fw
                 containerFirewall = docker_client.create_container( **container_fw_data)
             except:
-                print("ERROR: Missing firewall image")
+                akhet_logger("ERROR: Missing firewall image")
                 instanceRegistry[token] = {"errorno":5, "error":"Missing firewall image"}
 
             if containerFirewall != None:
@@ -482,7 +483,7 @@ def do_create(token):
                     data["docker_id"] = container.get('Id')
 
 
-                    print("Wait for VNC server")
+                    akhet_logger("Wait for VNC server")
                     wait_for_vnc_server = True
                     while wait_for_vnc_server:
                         wait_vnc_server_exec = docker_client.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
@@ -509,10 +510,10 @@ def do_create(token):
                     os.remove(tar_name)
                     os.rmdir(tmp_dir_name)
 
-                    print("Waiting for the death of {}".format(container.get('Id')))
+                    akhet_logger("Waiting for the death of {}".format(container.get('Id')))
 
                     docker_client.wait(container.get('Id'))
-                    print("Death of {}".format(container.get('Id')))
+                    akhet_logger("Death of {}".format(container.get('Id')))
 
                     proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
                     proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())

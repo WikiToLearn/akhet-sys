@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+from akhet_logger import akhet_logger
 
 def allow_host_port(service,host,port):
     filenames = ["/var/run/akhet/{}/allowedports/{}".format(service, port),"/var/run/akhet/{}/allowedhosts/{}".format(service, host)]

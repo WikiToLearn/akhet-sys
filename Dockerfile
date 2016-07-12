@@ -30,7 +30,6 @@ ADD ./index.html /var/www/html/index.html
 ADD ./akhet.py /opt/akhet.py
 ADD ./auth.lua /opt/auth.lua
 ADD ./akhet-libs /opt/akhet-libs
-ADD ./akhet.ini /etc/akhet.ini
 
 ADD ./run.sh /run.sh
 RUN chmod +x /run.sh

@@ -1,0 +1,47 @@
+[Akhet]
+network_profiles=default
+resource_profiles=default
+storages=default
+
+wsvnc_port_start = 1000
+wsvnc_port_end   = 1005
+ws_port_start    = 2000
+ws_port_end      = 2010
+http_port_start  = 3000
+http_port_end    = 3010
+
+external_port = 80
+external_ssl_port = 443
+public_hostname = localhost
+
+connection_method=socket # or tcp or ssl
+
+#remote_host = # hostname or the ip for network protocols
+#remote_port = # remote port for network protocols
+
+#ssl_key_file = # ssl key to use to auth on network protocols
+#ssl_cert_file =  # ssl cert to use to auth on network protocols
+#ssl_ca =  # ssl ca to use to auth on network protocols
+
+socket_file = /var/run/docker.sock
+
+#swarm_cluster = off # or on if we are using a swarm cluster
+
+api_username = admin
+api_password = admin
+# api_whitelist_ip = list of comma separated of ips or subnets to be allowed for the API
+
+#cuda=off # or on if you want enable cuda
+#cuda_devices=/dev/nvidia0 # list of cuda devices comma separated
+
+[network:default]
+defaultrule=DROP
+allowddest=8.8.8.8,8.8.4.4
+allowdport=80,443,53:udp
+
+[storage:default]
+hostpath=/srv/homedirs/{username}/
+guestpath=/home/user/
+
+[resource:default]
+ram=1g
