@@ -36,7 +36,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app)
 instanceRegistry = {}
 
 def resp_json(data):
-    replaydata = {"data":data, "version":"0.8"}
+    replaydata = {"data":data, "version":"0.8","version_minor":"2"}
     callback = request.values.get('callback', False)
     if callback:
         content = str(callback) + '(' + str(jsonify(replaydata).data) + ')'
@@ -595,7 +595,7 @@ def do_0_8_imageslocal():
     data = {}
     for image in docker_client.images():
         for image_tag in image['RepoTags']:
-            if image_validate(image_tag):
+            if image_validate(image_tag,False):
                 image_info = image_tag.split(':')
                 if image_info[1] == "latest":
                     if not image_info[0] in data:
