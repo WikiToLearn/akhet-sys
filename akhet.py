@@ -8,6 +8,8 @@ from loadconfig import load_config
 from dockerconnect import docker_connect
 import proxysecurity
 
+from akhet_instance_registry import AkhetInstanceRegistry
+
 #usefull stuff
 from flask import Flask, current_app, jsonify, request
 from werkzeug.contrib.fixers import ProxyFix
@@ -33,7 +35,7 @@ docker_client = docker_connect(config)
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
-instanceRegistry = {}
+instance_registry = AkhetInstanceRegistry()
 
 def resp_json(data):
     replaydata = {"data":data, "version":"0.8","version_minor":"2"}
@@ -176,8 +178,9 @@ def do_poll():
     token = request.args.get('token')
 
     if (token):
-        if token in instanceRegistry:
-            return resp_json(instanceRegistry[token])
+        data = instance_registry.get(token)
+        if data != None:
+            return resp_json(data)
         else:
             return resp_json({"errorno": 10, "error": "Token not found '{}'".format(token)})
     else:
@@ -185,6 +188,7 @@ def do_poll():
 
 @app.route('/0.8/instance', methods=['POST'])
 def do_0_8_create():
+    akhet_logger("New request")
     instance_data={}
     if request.headers['Content-Type'] != 'application/json':
         return({"errorno": 7, "error": "You have to send application/json"})
@@ -265,26 +269,25 @@ def do_0_8_create():
     if not image_validate(instance_data['request_img']):
        return resp_json({"errorno": 6, "error": "Image %s not allowed" % instance_data['request_img']})
 
+    akhet_logger("Data valid")
+
     instance_data['status']  = 0
 
-    locker.acquire()
-    token = get_random_string(32)
+    token = instance_registry.get_token()
+    akhet_logger("New token: {}".format(token))
     instance_data['token']  = token
-    instanceRegistry[token] = instance_data
-    locker.release()
+    instance_registry.add_data(token,instance_data)
 
     _thread.start_new_thread(do_create, (token,) )
-    return resp_json(instanceRegistry[token])
-
-locker = threading.Lock()
+    return resp_json(instance_registry.get(token))
 
 ##### threaded stuff
 def do_create(token):
     docker_inspect_image = None
     try:
-        docker_inspect_image = docker_client.inspect_image(instanceRegistry[token]['request_img'])
+        docker_inspect_image = docker_client.inspect_image(instance_registry.get(token)['request_img'])
     except:
-        instanceRegistry[token] = {"errorno": 1, "error": "Missing image %s" % instance_data['request_img']}
+        instance_registry.update_data(token, {"errorno": 1, "error": "Missing image %s" % instance_data['request_img']})
 
     if docker_inspect_image != None:
         additional_ws_binding = {}
@@ -292,11 +295,11 @@ def do_create(token):
         global_additional_used_ports=[]
         additional_used_ports=[]
 
-        locker.acquire()
+        instance_registry.lock()
         wsvnc_port = wsvnc_port_first_free(global_additional_used_ports)
 
         missing_additional_ws_port = False
-        for additional_ws_port in instanceRegistry[token]['request_additional_ws']:
+        for additional_ws_port in instance_registry.get(token)['request_additional_ws']:
             additional_ws_binding[additional_ws_port] = ws_port_first_free(global_additional_used_ports)
             if additional_ws_binding[additional_ws_port] == None:
                 missing_additional_ws_port = True
@@ -304,7 +307,7 @@ def do_create(token):
                 global_additional_used_ports.append(additional_ws_binding[additional_ws_port])
 
         missing_additional_http_port = False
-        for additional_http_port in instanceRegistry[token]['request_additional_http']:
+        for additional_http_port in instance_registry.get(token)['request_additional_http']:
             additional_http_binding[additional_http_port] = http_port_first_free(global_additional_used_ports)
             if additional_http_binding[additional_http_port] == None:
                 missing_additional_http_port = True
@@ -313,14 +316,11 @@ def do_create(token):
 
 
         if wsvnc_port == None:
-            instanceRegistry[token] = {"errorno": 2, "error": "No machines available. Please try again later."} # estimated time
-            locker.release()
+            instance_registry.update_data(token, {"errorno": 2, "error": "No machines available. Please try again later."},False) # estimated time
         elif missing_additional_ws_port:
-            instanceRegistry[token] = {"errorno": 12, "error": "No ports available for additional ws. Please try again later."} # estimated time
-            locker.release()
+            instance_registry.update_data(token, {"errorno": 12, "error": "No ports available for additional ws. Please try again later."},False) # estimated time
         elif missing_additional_http_port:
-            instanceRegistry[token] = {"errorno": 13, "error": "No ports available for additional http. Please try again later."} # estimated time
-            locker.release()
+            instance_registry.update_data(token, {"errorno": 13, "error": "No ports available for additional http. Please try again later."},False) # estimated time
         else:
             for port in additional_ws_binding:
                 additional_used_ports.append(port)
@@ -330,9 +330,9 @@ def do_create(token):
             # create the volumes mountpoints
             volumes = []
             volumes_bind = []
-            for storage in instanceRegistry[token]['request_storages']:
+            for storage in instance_registry.get(token)['request_storages']:
                 string_placeholders = {}
-                string_placeholders["username"] = instanceRegistry[token]['request_user']
+                string_placeholders["username"] = instance_registry.get(token)['request_user']
 
                 hostpath  = config['profiles']["storage"][storage]['hostpath'].format(**string_placeholders)
                 guestpath = config['profiles']["storage"][storage]['guestpath'].format(**string_placeholders)
@@ -348,9 +348,9 @@ def do_create(token):
             environment_fw['defaultrule'] = None
 
             for k in environment_fw.keys():
-                if instanceRegistry[token]['request_network'] in config['profiles']["network"].keys():
-                    if config['profiles']["network"][instanceRegistry[token]['request_network']][k] != None:
-                        environment_fw[k] = ' '.join(config['profiles']["network"][instanceRegistry[token]['request_network']][k].split(","))
+                if instance_registry.get(token)['request_network'] in config['profiles']["network"].keys():
+                    if config['profiles']["network"][instance_registry.get(token)['request_network']][k] != None:
+                        environment_fw[k] = ' '.join(config['profiles']["network"][instance_registry.get(token)['request_network']][k].split(","))
 
             containerFirewall = None
             # create firewall docker to limit network
@@ -381,8 +381,8 @@ def do_create(token):
                 container_fw_data["environment"] = environment_fw
                 containerFirewall = docker_client.create_container( **container_fw_data)
             except:
-                akhet_logger("ERROR: Missing firewall image")
-                instanceRegistry[token] = {"errorno":5, "error":"Missing firewall image"}
+                akhet_logger("ERROR: Missing firewall image ({})".format(token))
+                instance_registry.update_data(token, {"errorno":5, "error":"Missing firewall image"},False)
 
             if containerFirewall != None:
                 docker_client.start(container=containerFirewall.get('Id'))
@@ -390,26 +390,26 @@ def do_create(token):
 
                 environment = {}
                 environment['AKHETBASE_VNCPASS'] = get_random_string(8)
-                environment['AKHETBASE_USER'] = instanceRegistry[token]['request_user']
-                environment['AKHETBASE_USER_LABEL'] = instanceRegistry[token]['request_user_label']
-                environment['AKHETBASE_UID'] = instanceRegistry[token]['request_uid']
-                environment['AKHETBASE_GIDs'] = " ".join(str(x) for x in instanceRegistry[token]['request_gids'])
-                if instanceRegistry[token]['request_notimeout']:
+                environment['AKHETBASE_USER'] = instance_registry.get(token)['request_user']
+                environment['AKHETBASE_USER_LABEL'] = instance_registry.get(token)['request_user_label']
+                environment['AKHETBASE_UID'] = instance_registry.get(token)['request_uid']
+                environment['AKHETBASE_GIDs'] = " ".join(str(x) for x in instance_registry.get(token)['request_gids'])
+                if instance_registry.get(token)['request_notimeout']:
                     environment['AKHETBASE_NOTIMEOUT'] = '1'
-                if instanceRegistry[token]['request_shared']:
+                if instance_registry.get(token)['request_shared']:
                     environment['AKHETBASE_SHARED'] = '1'
 
-                for var in instanceRegistry[token]['request_env']:
+                for var in instance_registry.get(token)['request_env']:
                     var_name = "AKHET_{}".format(var)
-                    var_value = instanceRegistry[token]['request_env'][var]
+                    var_value = instance_registry.get(token)['request_env'][var]
                     if var_name not in environment:
                         environment[var_name] = var_value
                 hostcfg_data={}
                 container_data = {}
 
-                if instanceRegistry[token]['request_resource'] in config['profiles']["resource"].keys():
-                    if config['profiles']["resource"][instanceRegistry[token]['request_resource']]['ram'] != None:
-                        hostcfg_data["mem_limit"] = config['profiles']["resource"][instanceRegistry[token]['request_resource']]['ram']
+                if instance_registry.get(token)['request_resource'] in config['profiles']["resource"].keys():
+                    if config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram'] != None:
+                        hostcfg_data["mem_limit"] = config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram']
 
                 hostcfg_data["network_mode"]="container:" + firewallname
 
@@ -432,19 +432,19 @@ def do_create(token):
 
                         volumes_bind.append('%s:/usr/local/nvidia' % cuda_volume)
                     else:
-                        instanceRegistry[token] = {"errorno":20, "error":"This host has not CUDA support"}
+                        instance_registry.update_data(token, {"errorno":20, "error":"This host has not CUDA support"},False)
 
-                if "errorno" not in instanceRegistry[token]:
+                if "errorno" not in instance_registry.get(token):
                     hostcfg_data["binds"] = volumes_bind
 
                     hostcfg = docker_client.create_host_config(**hostcfg_data)
 
                     container_data["name"] = "akhetinstance-" + str(wsvnc_port)
                     container_data["host_config"] = hostcfg
-                    container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(instanceRegistry[token]['request_instance_ttl']), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
+                    container_data["labels"] = {"akhetinstance":"yes", "akhetTTL": str(instance_registry.get(token)['request_instance_ttl']), "akhetUsedVNCPort":str(wsvnc_port), "akhetUsedPorts":",".join(str(x) for x in additional_used_ports)}
                     container_data["detach"] = True
                     container_data["tty"] = True
-                    container_data["image"] = instanceRegistry[token]['request_img']
+                    container_data["image"] = instance_registry.get(token)['request_img']
                     container_data["environment"] = environment
                     container_data["volumes"] = volumes
 
@@ -483,7 +483,7 @@ def do_create(token):
                     data["docker_id"] = container.get('Id')
 
 
-                    akhet_logger("Wait for VNC server")
+                    akhet_logger("Wait for VNC server ({})".format(token))
                     wait_for_vnc_server = True
                     while wait_for_vnc_server:
                         wait_vnc_server_exec = docker_client.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
@@ -492,8 +492,8 @@ def do_create(token):
                         wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
                         sleep(0.01)
 
-                    instanceRegistry[token] = data
-                    locker.release()
+                    akhet_logger("VNC server UP ({})".format(token))
+                    instance_registry.update_data(token, data, False)
 
                     # create a json file inside the docker to pass the akhet instance info inside the docker itself
                     tmp_dir_name="/tmp/{}".format(token)
@@ -510,18 +510,18 @@ def do_create(token):
                     os.remove(tar_name)
                     os.rmdir(tmp_dir_name)
 
-                    akhet_logger("Waiting for the death of {}".format(container.get('Id')))
+                    akhet_logger("Waiting for the death of {}  ({})".format(container.get('Id'),token))
 
                     docker_client.wait(container.get('Id'))
-                    akhet_logger("Death of {}".format(container.get('Id')))
+                    akhet_logger("Death of {}  ({})".format(container.get('Id'),token))
 
                     proxysecurity.set_wsvnc(False,nodeaddr,wsvnc_port)
                     proxysecurity.set_ws(False,nodeaddr,additional_ws_binding.keys())
                     proxysecurity.set_http(False,nodeaddr,additional_http_binding.keys())
 
-                    locker.acquire()
-                    del instanceRegistry[token]
-                    locker.release()
+    akhet_logger("Delete of {} instance".format(token))
+
+    instance_registry.delete_data(token)
 
 @app.route('/0.8/instance-resolution', methods=['GET'])
 def do_0_8_instance_resolution_get():
@@ -530,7 +530,7 @@ def do_0_8_instance_resolution_get():
 
     token = request.args.get('token')
 
-    instance_data = instanceRegistry[token]
+    instance_data = instance_registry.get(token)
 
     vnc_server_exec = docker_client.exec_create(container=instance_data['docker_id'],cmd="/usr/local/bin/akhet-resolutions.sh get")
     vnc_server_exec_output = docker_client.exec_start(exec_id=vnc_server_exec).decode('utf-8').strip().split("\n")
@@ -560,7 +560,7 @@ def do_0_8_instance_resolution_post():
         return resp_json({"errorno": 18, "error": "Missing width"})
     width = request.json['width']
 
-    instance_data = instanceRegistry[token]
+    instance_data = instance_registry.get(token)
 
     vnc_server_exec = docker_client.exec_create(container=instance_data['docker_id'],cmd="/usr/local/bin/akhet-resolutions.sh set {}x{}".format(width,height))
     vnc_server_exec_output = docker_client.exec_start(exec_id=vnc_server_exec).decode('utf-8').strip()
