@@ -27,6 +27,7 @@ RUN rm -f /etc/nginx/sites-available/default
 ADD ./default /etc/nginx/sites-available/default
 
 ADD ./index.html /var/www/html/index.html
+ADD ./favicon.ico /var/www/html/favicon.ico
 ADD ./akhet.py /opt/akhet.py
 ADD ./auth.lua /opt/auth.lua
 ADD ./akhet-libs /opt/akhet-libs
