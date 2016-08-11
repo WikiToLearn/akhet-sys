@@ -185,6 +185,11 @@ def do_poll():
     else:
         return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
 
+def getValueIfExists(dictionary,key,default_value=None):
+    if key in dictionary:
+        return dictionary[key]
+    return default_value
+
 @app.route('/0.8/instance', methods=['POST'])
 def do_0_8_create():
     akhet_logger("New request")
@@ -200,65 +205,18 @@ def do_0_8_create():
         return resp_json({"errorno": 9, "error": "Missing image"})
     instance_data['request_img'] = validate(request.json['image'])
 
-    if 'network' in request.json:
-        instance_data['request_network'] = validate(request.json['network'])
-    else:
-        instance_data['request_network'] = "default"
-
-    if 'user_label' in request.json:
-        instance_data['request_user_label'] = validate(request.json['user_label'])
-    else:
-        instance_data['request_user_label'] = "Akhet User"
-
-    if 'resource' in request.json:
-        instance_data['request_resource'] = validate(request.json['resource'])
-    else:
-        instance_data['request_resource'] = "default"
-
-    if 'uid' in request.json:
-        instance_data['request_uid'] = request.json['uid']
-    else:
-        instance_data['request_uid'] = "1000"
-
-    if 'gids' in request.json:
-        instance_data['request_gids'] = request.json['gids']
-    else:
-        instance_data['request_gids'] = ["1000"]
-
-    if 'storages' in request.json:
-        instance_data['request_storages'] = request.json['storages']
-    else:
-        instance_data['request_storages'] = ["default"]
-
-    if 'env' in request.json:
-        instance_data['request_env'] = request.json['env']
-    else:
-        instance_data['request_env'] = {}
-
-    if 'notimeout' in request.json:
-        instance_data['request_notimeout'] = request.json['notimeout']
-    else:
-        instance_data['request_notimeout'] = False
-
-    if 'shared' in request.json:
-        instance_data['request_shared'] = request.json['shared']
-    else:
-        instance_data['request_shared'] = False
-
-    if 'additional_ws' in request.json:
-        instance_data['request_additional_ws'] = request.json['additional_ws']
-    else:
-        instance_data['request_additional_ws'] = []
-
-    if 'additional_http' in request.json:
-        instance_data['request_additional_http'] = request.json['additional_http']
-    else:
-        instance_data['request_additional_http'] = []
-
-    if 'instance_ttl' in request.json:
-        instance_data['request_instance_ttl'] = request.json['instance_ttl']
-    else:
-        instance_data['request_instance_ttl'] = 0
+    instance_data['request_network'] = validate(getValueIfExists(request.json,'network', "default"))
+    instance_data['request_user_label'] = validate(getValueIfExists(request.json,'user_label', "Akhet User"))
+    instance_data['request_resource'] = validate(getValueIfExists(request.json,'resource', "default"))
+    instance_data['request_uid'] = validate(getValueIfExists(request.json,'uid', "1000"))
+    instance_data['request_gids'] = getValueIfExists(request.json,'gids', ["1000"])
+    instance_data['request_storages'] = getValueIfExists(request.json,'storages', ["default"])
+    instance_data['request_env'] = getValueIfExists(request.json,'env', {})
+    instance_data['request_notimeout'] = getValueIfExists(request.json,'notimeout', False)
+    instance_data['request_shared'] = getValueIfExists(request.json,'shared', False)
+    instance_data['request_additional_ws'] = getValueIfExists(request.json,'additional_ws', [])
+    instance_data['request_additional_http'] = getValueIfExists(request.json,'additional_http', [])
+    instance_data['request_instance_ttl'] = getValueIfExists(request.json,'instance_ttl', 0)
 
     if len(instance_data['request_user']) == 0:
         return resp_json({"errorno": 3, "error": "Invalid user"})
