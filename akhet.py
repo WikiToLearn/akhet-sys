@@ -185,7 +185,7 @@ def do_poll():
     else:
         return resp_json({"errorno": 11, "error": "Invalid token '{}'".format(token)})
 
-def getValueIfExists(dictionary,key,default_value=None):
+def get_value_if_exists(dictionary,key,default_value=None):
     if key in dictionary:
         return dictionary[key]
     return default_value
@@ -205,18 +205,18 @@ def do_0_8_create():
         return resp_json({"errorno": 9, "error": "Missing image"})
     instance_data['request_img'] = validate(request.json['image'])
 
-    instance_data['request_network'] = validate(getValueIfExists(request.json,'network', "default"))
-    instance_data['request_user_label'] = validate(getValueIfExists(request.json,'user_label', "Akhet User"))
-    instance_data['request_resource'] = validate(getValueIfExists(request.json,'resource', "default"))
-    instance_data['request_uid'] = validate(getValueIfExists(request.json,'uid', "1000"))
-    instance_data['request_gids'] = getValueIfExists(request.json,'gids', ["1000"])
-    instance_data['request_storages'] = getValueIfExists(request.json,'storages', ["default"])
-    instance_data['request_env'] = getValueIfExists(request.json,'env', {})
-    instance_data['request_notimeout'] = getValueIfExists(request.json,'notimeout', False)
-    instance_data['request_shared'] = getValueIfExists(request.json,'shared', False)
-    instance_data['request_additional_ws'] = getValueIfExists(request.json,'additional_ws', [])
-    instance_data['request_additional_http'] = getValueIfExists(request.json,'additional_http', [])
-    instance_data['request_instance_ttl'] = getValueIfExists(request.json,'instance_ttl', 0)
+    instance_data['request_network'] = validate(get_value_if_exists(request.json,'network', "default"))
+    instance_data['request_user_label'] = validate(get_value_if_exists(request.json,'user_label', "Akhet User"))
+    instance_data['request_resource'] = validate(get_value_if_exists(request.json,'resource', "default"))
+    instance_data['request_uid'] = validate(get_value_if_exists(request.json,'uid', "1000"))
+    instance_data['request_gids'] = get_value_if_exists(request.json,'gids', ["1000"])
+    instance_data['request_storages'] = get_value_if_exists(request.json,'storages', ["default"])
+    instance_data['request_env'] = get_value_if_exists(request.json,'env', {})
+    instance_data['request_notimeout'] = get_value_if_exists(request.json,'notimeout', False)
+    instance_data['request_shared'] = get_value_if_exists(request.json,'shared', False)
+    instance_data['request_additional_ws'] = get_value_if_exists(request.json,'additional_ws', [])
+    instance_data['request_additional_http'] = get_value_if_exists(request.json,'additional_http', [])
+    instance_data['request_instance_ttl'] = get_value_if_exists(request.json,'instance_ttl', 0)
 
     if len(instance_data['request_user']) == 0:
         return resp_json({"errorno": 3, "error": "Invalid user"})
