@@ -194,17 +194,11 @@ def get_value_if_exists(dictionary,key,default_value=None):
 def do_0_8_create():
     akhet_logger("New request")
     instance_data={}
-    if request.headers['Content-Type'] != 'application/json':
+    if get_value_if_exists(request.headers,'Content-Type',None) != 'application/json':
         return {"errorno": 7, "error": "You have to send application/json"}
 
-    if 'user' not in request.json:
-        return resp_json({"errorno": 8, "error": "Missing user"})
-    instance_data['request_user'] = validate(request.json['user'])
-
-    if 'image' not in request.json:
-        return resp_json({"errorno": 9, "error": "Missing image"})
-    instance_data['request_img'] = validate(request.json['image'])
-
+    instance_data['request_user'] = validate(get_value_if_exists(request.json,'user', None))
+    instance_data['request_img'] = validate(get_value_if_exists(request.json,'image', None))
     instance_data['request_network'] = validate(get_value_if_exists(request.json,'network', "default"))
     instance_data['request_user_label'] = validate(get_value_if_exists(request.json,'user_label', "Akhet User"))
     instance_data['request_resource'] = validate(get_value_if_exists(request.json,'resource', "default"))
@@ -217,6 +211,11 @@ def do_0_8_create():
     instance_data['request_additional_ws'] = get_value_if_exists(request.json,'additional_ws', [])
     instance_data['request_additional_http'] = get_value_if_exists(request.json,'additional_http', [])
     instance_data['request_instance_ttl'] = get_value_if_exists(request.json,'instance_ttl', 0)
+
+    if instance_data['request_user'] == None:
+        return resp_json({"errorno": 8, "error": "Missing user"})
+    if instance_data['request_img'] == None:
+        return resp_json({"errorno": 9, "error": "Missing image"})
 
     if len(instance_data['request_user']) == 0:
         return resp_json({"errorno": 3, "error": "Invalid user"})
