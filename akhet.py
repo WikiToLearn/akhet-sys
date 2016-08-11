@@ -158,7 +158,7 @@ def do_0_8_gc():
         if 'akhetTTL' in cinfo['Config']['Labels']:
             instance_ttl = int(cinfo['Config']['Labels']['akhetTTL'])
             if instance_ttl != 0:
-                if( (datetime.datetime.now().replace(tzinfo=None) - started_time.replace(tzinfo=None) ).total_seconds() > instance_ttl ):
+                if (datetime.datetime.now().replace(tzinfo=None) - started_time.replace(tzinfo=None) ).total_seconds() > instance_ttl:
                     docker_client.kill(container=d['Id'])
 
     for d in docker_client.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
