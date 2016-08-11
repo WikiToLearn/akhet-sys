@@ -157,9 +157,8 @@ def do_0_8_gc():
         started_time = dateutil.parser.parse( cinfo['State']['StartedAt'] )
         if 'akhetTTL' in cinfo['Config']['Labels']:
             instance_ttl = int(cinfo['Config']['Labels']['akhetTTL'])
-            if instance_ttl != 0:
-                if (datetime.datetime.now().replace(tzinfo=None) - started_time.replace(tzinfo=None) ).total_seconds() > instance_ttl:
-                    docker_client.kill(container=d['Id'])
+            if instance_ttl != 0 and (datetime.datetime.now().replace(tzinfo=None) - started_time.replace(tzinfo=None) ).total_seconds() > instance_ttl:
+                docker_client.kill(container=d['Id'])
 
     for d in docker_client.containers(all=True, filters={"status":"exited", "label":"akhetinstance=yes"}):
         akhet_logger("Removing " + str(d["Image"]) + " " + str(d["Labels"]["akhetUsedVNCPort"]))
@@ -177,7 +176,7 @@ def do_poll():
 
     token = request.args.get('token')
 
-    if (token):
+    if token:
         data = instance_registry.get(token)
         if data != None:
             return resp_json(data)
@@ -191,7 +190,7 @@ def do_0_8_create():
     akhet_logger("New request")
     instance_data={}
     if request.headers['Content-Type'] != 'application/json':
-        return({"errorno": 7, "error": "You have to send application/json"})
+        return {"errorno": 7, "error": "You have to send application/json"}
 
     if 'user' not in request.json:
         return resp_json({"errorno": 8, "error": "Missing user"})
@@ -261,9 +260,9 @@ def do_0_8_create():
     else:
         instance_data['request_instance_ttl'] = 0
 
-    if (len(instance_data['request_user']) == 0):
+    if len(instance_data['request_user']) == 0:
         return resp_json({"errorno": 3, "error": "Invalid user"})
-    if (len(instance_data['request_img']) == 0):
+    if len(instance_data['request_img']) == 0:
         return resp_json({"errorno": 4, "error":"Image not valid"})
 
     if not image_validate(instance_data['request_img']):
@@ -348,11 +347,10 @@ def do_create(token):
             environment_fw['defaultrule'] = None
 
             for k in environment_fw.keys():
-                if instance_registry.get(token)['request_network'] in config['profiles']["network"].keys():
-                    if config['profiles']["network"][instance_registry.get(token)['request_network']][k] != None:
-                        environment_fw[k] = ' '.join(config['profiles']["network"][instance_registry.get(token)['request_network']][k].split(","))
+                if instance_registry.get(token)['request_network'] in config['profiles']["network"].keys() and config['profiles']["network"][instance_registry.get(token)['request_network']][k] != None:
+                    environment_fw[k] = ' '.join(config['profiles']["network"][instance_registry.get(token)['request_network']][k].split(","))
 
-            containerFirewall = None
+            container_firewall_obj = None
             # create firewall docker to limit network
             try:
                 fw_port_bindings = {6080:wsvnc_port}
@@ -379,14 +377,14 @@ def do_create(token):
                 container_fw_data["hostname"] = "akhetinstance" + str(wsvnc_port)
                 container_fw_data["ports"] = fw_ports
                 container_fw_data["environment"] = environment_fw
-                containerFirewall = docker_client.create_container( **container_fw_data)
+                container_firewall_obj = docker_client.create_container( **container_fw_data)
             except:
                 akhet_logger("ERROR: Missing firewall image ({})".format(token))
                 instance_registry.update_data(token, {"errorno":5, "error":"Missing firewall image"},False)
 
-            if containerFirewall != None:
-                docker_client.start(container=containerFirewall.get('Id'))
-                firewallname = docker_client.inspect_container(container=containerFirewall.get('Id'))["Name"][1:]
+            if container_firewall_obj != None:
+                docker_client.start(container=container_firewall_obj.get('Id'))
+                firewallname = docker_client.inspect_container(container=container_firewall_obj.get('Id'))["Name"][1:]
 
                 environment = {}
                 environment['AKHETBASE_VNCPASS'] = get_random_string(8)
@@ -407,15 +405,14 @@ def do_create(token):
                 hostcfg_data={}
                 container_data = {}
 
-                if instance_registry.get(token)['request_resource'] in config['profiles']["resource"].keys():
-                    if config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram'] != None:
-                        hostcfg_data["mem_limit"] = config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram']
+                if instance_registry.get(token)['request_resource'] in config['profiles']["resource"].keys() and config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram'] != None:
+                    hostcfg_data["mem_limit"] = config['profiles']["resource"][instance_registry.get(token)['request_resource']]['ram']
 
                 hostcfg_data["network_mode"]="container:" + firewallname
 
 
                 if "akhetimagecuda" in docker_inspect_image["Config"]["Labels"]:
-                    if(config['cuda']['available']):
+                    if config['cuda']['available']:
                         cuda_devs=[]
                         cuda_devs.append("/dev/nvidiactl")
                         cuda_devs.append("/dev/nvidia-uvm")
@@ -453,9 +450,9 @@ def do_create(token):
 
                     # get node address
                     if config['docker']['swarm']:
-                        nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))["Node"]["Addr"].split(':')[0]
+                        nodeaddr = docker_client.inspect_container(container=container_firewall_obj.get('Id'))["Node"]["Addr"].split(':')[0]
                     else:
-                        nodeaddr = docker_client.inspect_container(container=containerFirewall.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
+                        nodeaddr = docker_client.inspect_container(container=container_firewall_obj.get('Id'))['NetworkSettings']['Networks']['bridge']['Gateway']
 
                     proxysecurity.set_wsvnc(True,nodeaddr,wsvnc_port)
                     proxysecurity.set_ws(True,nodeaddr,additional_ws_binding.keys())
@@ -546,7 +543,7 @@ def do_0_8_instance_resolution_get():
 @app.route('/0.8/instance-resolution', methods=['POST'])
 def do_0_8_instance_resolution_post():
     if request.headers['Content-Type'] != 'application/json':
-        return({"errorno": 7, "error": "You have to send application/json"})
+        return {"errorno": 7, "error": "You have to send application/json"}
 
     if 'token' not in request.json:
         return resp_json({"errorno": 18, "error": "Missing token"})
@@ -597,13 +594,12 @@ def do_0_8_imageslocal():
         for image_tag in image['RepoTags']:
             if image_validate(image_tag,False):
                 image_info = image_tag.split(':')
-                if image_info[1] == "latest":
-                    if not image_info[0] in data:
-                        inspect = docker_client.inspect_image(image_tag)
-                        versions=[]
-                        for repo_tag in inspect['RepoTags']:
-                            versions.append(repo_tag[len(image_info[0])+1:])
-                        data[image_info[0]] = {"versions":versions}
+                if image_info[1] == "latest" and not image_info[0] in data:
+                    inspect = docker_client.inspect_image(image_tag)
+                    versions=[]
+                    for repo_tag in inspect['RepoTags']:
+                        versions.append(repo_tag[len(image_info[0])+1:])
+                    data[image_info[0]] = {"versions":versions}
     return resp_json(data)
 
 if __name__ == '__main__':
