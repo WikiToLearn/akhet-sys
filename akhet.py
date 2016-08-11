@@ -489,7 +489,7 @@ def do_create(token):
                         wait_vnc_server_exec = docker_client.exec_create(container=container.get('Id'),cmd="cat /var/run/akhet/vnc-server")
                         wait_vnc_server_exec_output = docker_client.exec_start(exec_id=wait_vnc_server_exec).decode('utf-8')
                         wait_vnc_server_exec_output_split = wait_vnc_server_exec_output.split('=')
-                        wait_for_vnc_server = (wait_vnc_server_exec_output_split[0] != "PORT")
+                        wait_for_vnc_server = wait_vnc_server_exec_output_split[0] != "PORT"
                         sleep(0.01)
 
                     akhet_logger("VNC server UP ({})".format(token))

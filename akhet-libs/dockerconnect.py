@@ -8,10 +8,10 @@ from akhet_logger import akhet_logger
 
 def docker_connect(config):
     c = None
-    if (config['docker']['connection_type'] == "socket"):
+    if config['docker']['connection_type'] == "socket":
         akhet_logger("Connecting through socket...")
         c = Client(base_url="unix:/{}".format(config['docker']['socket_file']))
-    elif (config['docker']['connection_type'] == "tcp"):
+    elif config['docker']['connection_type'] == "tcp":
         akhet_logger("Connecting through TCP...")
         c = Client(base_url='tcp://{}:{}'.format(config['docker']['remote']['host'], config['docker']['remote']['port']))
     else:

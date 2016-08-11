@@ -26,12 +26,11 @@ def read_group_config(profile_list, section_prefix,default_required=True):
         except:
             akhet_logger("Error loading {}:{} profile".format(section_prefix,profile))
 
-    if default_required:
-        if 'default' not in profile_list:
-            akhet_logger("Missing {} default profile".format(section_prefix))
-            profiles_data['default'] = {}
-            for option in profile_options[section_prefix]:
-                profiles_data['default'][option] = None
+    if default_required and 'default' not in profile_list:
+        akhet_logger("Missing {} default profile".format(section_prefix))
+        profiles_data['default'] = {}
+        for option in profile_options[section_prefix]:
+            profiles_data['default'][option] = None
     return profiles_data
 
 profile_options = {}
@@ -94,7 +93,7 @@ def load_config():
     config['docker']['remote']['ssl_ca'] = try_read_config("Akhet", "ssl_ca", "/ca.crt")
     config['docker']['socket_file'] = try_read_config("Akhet", "socket_file", "/var/run/docker.sock")
 
-    config['docker']['swarm'] = (try_read_config("Akhet", "swarm_cluster", "off") == "on")
+    config['docker']['swarm'] = try_read_config("Akhet", "swarm_cluster", "off") == "on"
 
     config['api'] = {}
     config['api']['username'] = try_read_config("Akhet", "api_username", "akhetuser")
