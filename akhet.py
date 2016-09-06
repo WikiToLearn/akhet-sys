@@ -36,7 +36,7 @@ docker_client = docker_connect(config)
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 
-instance_registry = AkhetInstanceRegistry()
+instance_registry = None
 
 
 def resp_json(data):
@@ -267,9 +267,6 @@ def do_0_8_create():
     _thread.start_new_thread(do_create_step1, (token,))
     return resp_json(instance_registry.get(token))
 
-# threaded stuff
-
-
 def do_create_step1(token):
     docker_inspect_image = None
     try:
@@ -429,26 +426,27 @@ def do_create_step2(token, docker_inspect_image):
 
             hostcfg_data["network_mode"] = "container:" + firewallname
 
-            if "akhetimagecuda" in docker_inspect_image["Config"]["Labels"] and config['cuda']['available']:
-                cuda_devs = []
-                cuda_devs.append("/dev/nvidiactl")
-                cuda_devs.append("/dev/nvidia-uvm")
-                for d in config['cuda']['devices']:
-                    cuda_devs.append(d)
-                hostcfg_data["devices"] = cuda_devs
+            if "akhetimagecuda" in docker_inspect_image["Config"]["Labels"]:
+                if config['cuda']['available']:
+                    cuda_devs = []
+                    cuda_devs.append("/dev/nvidiactl")
+                    cuda_devs.append("/dev/nvidia-uvm")
+                    for d in config['cuda']['devices']:
+                        cuda_devs.append(d)
+                    hostcfg_data["devices"] = cuda_devs
 
-                volumes_info = docker_client.volumes()
-                volumes_cuda_search = volumes_info['Volumes']
-                cuda_volume = None
-                for volume in volumes_cuda_search:
-                    if volume['Driver'] == "nvidia-docker":
-                        cuda_volume = volume['Name']
+                    volumes_info = docker_client.volumes()
+                    volumes_cuda_search = volumes_info['Volumes']
+                    cuda_volume = None
+                    for volume in volumes_cuda_search:
+                        if volume['Driver'] == "nvidia-docker":
+                            cuda_volume = volume['Name']
 
-                volumes_bind.append(
-                    '%s:/usr/local/nvidia' % cuda_volume)
-            else:
-                instance_registry.update_data(
-                    token, {"errorno": 20, "error": "This host or image has not CUDA support"}, False)
+                    volumes_bind.append(
+                        '%s:/usr/local/nvidia' % cuda_volume)
+                else:
+                    instance_registry.update_data(
+                        token, {"errorno": 20, "error": "This host or image has not CUDA support"}, False)
 
             if "errorno" not in instance_registry.get(token):
                 hostcfg_data["binds"] = volumes_bind
@@ -560,7 +558,7 @@ def do_create_step2(token, docker_inspect_image):
                     False, nodeaddr, additional_ws_binding.keys())
                 proxysecurity.set_http(
                     False, nodeaddr, additional_http_binding.keys())
-                akhet_logger("Delete of {} instance".format(token))
+    akhet_logger("Delete of {} instance".format(token))
     instance_registry.delete_data(token)
 
 
@@ -646,20 +644,23 @@ def do_0_8_imagesonline():
 def do_0_8_imageslocal():
     data = {}
     for image in docker_client.images():
-        for image_tag in image['RepoTags']:
-            image_info = image_tag.split(':')
-            if image_validate(image_tag, False) and image_info[1] == "latest" and not image_info[0] in data:
-                inspect = docker_client.inspect_image(image_tag)
-                versions = []
-                for repo_tag in inspect['RepoTags']:
-                    versions.append(repo_tag[len(image_info[0]) + 1:])
-                data[image_info[0]] = {"versions": versions}
+        if image['RepoTags'] != None:
+            for image_tag in image['RepoTags']:
+                image_info = image_tag.split(':')
+                if image_validate(image_tag, False) and image_info[1] == "latest" and not image_info[0] in data:
+                    inspect = docker_client.inspect_image(image_tag)
+                    versions = []
+                    for repo_tag in inspect['RepoTags']:
+                        versions.append(repo_tag[len(image_info[0]) + 1:])
+                    data[image_info[0]] = {"versions": versions}
     return resp_json(data)
 
 if __name__ == '__main__':
+    akhet_logger("STARTING")
+    instance_registry = AkhetInstanceRegistry()
     app.debug = True
     file_handler = RotatingFileHandler(
-        '/var/log/akhet/akhet.log', maxBytes=1024 * 1024 * 100, backupCount=20)
+        '/var/log/akhet/flask.log', maxBytes=1024 * 1024 * 100, backupCount=20)
     file_handler.setLevel(logging.ERROR)
     app.logger.setLevel(logging.ERROR)
     app.logger.addHandler(file_handler)

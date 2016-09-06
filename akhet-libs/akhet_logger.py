@@ -6,4 +6,5 @@ def akhet_logger(msg):
         os.makedirs(d)
     with open("/var/log/akhet/akhet.log", "a") as myfile:
         myfile.write("{}\n".format(msg))
+        myfile.close()
     print(str(msg))
