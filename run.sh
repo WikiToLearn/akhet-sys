@@ -1,5 +1,6 @@
 #!/bin/bash
-
+set -e
+set -x
 if [ ! -f /etc/akhet.ini ] ; then
   echo "Missing /etc/akhet.ini file"
   exit 1
@@ -16,12 +17,13 @@ fi
 
 if [ ! -f /etc/ssl/private/nginx.key ] ; then
  cd /tmp/
- openssl genrsa -des3 -passout pass:x -out server.pass.key 2048
- openssl rsa -passin pass:x -in server.pass.key -out /etc/ssl/private/nginx.key
- rm server.pass.key
- openssl req -new -key /etc/ssl/private/nginx.key -out server.csr -subj "/C=IT/ST=Italia/L=Milano/O=WikiToLearn/OU=IT Department/CN=www.wikitolearn.org"
- openssl x509 -req -days 365000 -in server.csr -signkey /etc/ssl/private/nginx.key -out /etc/ssl/certs/nginx.crt
- rm server.csr
+ openssl req \
+      -subj '/CN=localhost' \
+      -new -newkey rsa:1024 \
+      -days 365 \
+      -nodes -x509 \
+      -keyout /etc/ssl/private/nginx.key \
+      -out /etc/ssl/certs/nginx.crt
 fi
 
 if test -e /var/run/docker.sock ; then # if there is the socket file for docker the user must have the right permissoion
